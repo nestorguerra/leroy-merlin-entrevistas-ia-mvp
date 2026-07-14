@@ -1,5 +1,6 @@
 import { FluidPresence } from "./orb.js";
 import { RealtimeInterview } from "./realtime.js";
+import { StaticVoicePlayer } from "./static-voice.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -23,6 +24,8 @@ const elements = {
   sampleGreeting: $("#sampleGreeting"),
   consentCheckbox: $("#consentCheckbox"),
   storageTrustLabel: $("#storageTrustLabel"),
+  voiceTrustLabel: $("#voiceTrustLabel"),
+  presenceVoiceLabel: $("#presenceVoiceLabel"),
   startRealtimeButton: $("#startRealtimeButton"),
   startPreviewButton: $("#startPreviewButton"),
   openSettingsButton: $("#openSettingsButton"),
@@ -103,7 +106,7 @@ const elements = {
 const state = {
   config: {
     keyConfigured: false,
-    model: "gpt-realtime-2.1",
+    model: "gpt-realtime-1.5",
     voice: "marin",
     localSettingsEnabled: true,
   },
@@ -143,6 +146,8 @@ const state = {
   previewRecognitionDisabled: false,
   previewSpeaking: false,
   previewStopped: false,
+  publishedVoiceReady: false,
+  voiceUnavailableNotified: false,
   confirmAction: null,
   realtimeEventTypes: [],
 };
@@ -150,12 +155,36 @@ const state = {
 const welcomePresence = new FluidPresence($("#welcomeCanvas"), { theme: "dark", seed: 4 });
 const interviewPresence = new FluidPresence($("#interviewCanvas"), { theme: "light", seed: 9 });
 const completePresence = new FluidPresence($("#completeCanvas"), { theme: "light", seed: 14 });
+const publishedVoice = new StaticVoicePlayer(elements.remoteAudio, {
+  onAnalyser: (analyser) => {
+    state.remoteAnalyser = analyser;
+  },
+});
 welcomePresence.setState("idle");
 interviewPresence.setState("connecting");
 completePresence.setState("completed");
 
 function getSelectedInterviewee() {
   return state.interviewees.find((person) => person.id === state.selectedIntervieweeId) || null;
+}
+
+function hasPublishedVoice(person = getSelectedInterviewee()) {
+  return Boolean(
+    person &&
+      state.publishedVoiceReady &&
+      publishedVoice.hasClip(person.id, { kind: "intro", questionIndex: 0 }),
+  );
+}
+
+function updateVoiceAvailabilityLabels() {
+  if (!IS_STATIC_DEMO) return;
+  const available = hasPublishedVoice();
+  elements.voiceTrustLabel.textContent = available
+    ? "Voz IA de OpenAI · Marin"
+    : "Este perfil continúa por texto";
+  elements.presenceVoiceLabel.textContent = available
+    ? "Voz generada por IA · OpenAI Marin"
+    : "Este perfil no tiene audio publicado";
 }
 
 function initials(name) {
@@ -290,10 +319,17 @@ function setAssistantResponding(responding) {
 
 function updateKeyStatus() {
   if (IS_STATIC_DEMO) {
-    elements.keyStatusCard.classList.add("is-ready");
-    elements.keyStatusTitle.textContent = "Demo segura en GitHub Pages";
-    elements.keyStatusDescription.textContent = "Sin claves ni conexión a OpenAI.";
-    setConnectionStatus("ready", "Demo en Pages");
+    elements.keyStatusCard.classList.toggle("is-ready", state.publishedVoiceReady);
+    elements.keyStatusTitle.textContent = state.publishedVoiceReady
+      ? "Voz OpenAI Marin preparada"
+      : "No se ha podido cargar la voz";
+    elements.keyStatusDescription.textContent = state.publishedVoiceReady
+      ? "Audio generado por IA y publicado sin exponer ninguna clave."
+      : "Puedes seguir por texto y responder hablando o escribiendo.";
+    setConnectionStatus(
+      state.publishedVoiceReady ? "ready" : "warning",
+      state.publishedVoiceReady ? "OpenAI Marin preparada" : "Voz no disponible",
+    );
     return;
   }
   const configured = Boolean(state.config.keyConfigured);
@@ -303,7 +339,7 @@ function updateKeyStatus() {
     : "Falta la clave de OpenAI";
   elements.keyStatusDescription.textContent = configured
     ? "El navegador solo recibirá una credencial temporal."
-    : "Añádela para activar la entrevista con GPT‑Realtime‑2.1.";
+    : "Añádela para activar la entrevista con GPT‑Realtime‑1.5 y Marin.";
   setConnectionStatus(
     configured ? "ready" : "warning",
     configured ? "Voz preparada" : "Falta configurar voz",
@@ -326,6 +362,12 @@ async function fetchJson(url, options = {}) {
 }
 
 async function loadConfig() {
+  try {
+    await publishedVoice.load();
+    state.publishedVoiceReady = true;
+  } catch {
+    state.publishedVoiceReady = false;
+  }
   if (IS_STATIC_DEMO) {
     state.config = {
       ...state.config,
@@ -345,14 +387,25 @@ async function loadConfig() {
     const privacyIntro = $("p", elements.privacyDialog);
     const privacyItems = $$("li", elements.privacyDialog);
     privacyIntro.textContent =
-      "Esta demo pública no conecta con OpenAI ni envía tu voz a este proyecto. Si respondes hablando, el reconocimiento puede depender del servicio de voz de tu navegador.";
+      "La entrevistadora usa audio generado previamente con OpenAI Marin. Es una voz de inteligencia artificial y la clave de OpenAI no está incluida en esta web. Si respondes hablando, el reconocimiento puede depender del servicio de voz de tu navegador.";
     privacyItems[1].textContent = "La transcripción se mantiene en esta pestaña hasta que la descargues.";
     privacyItems[4].textContent = "La demo no conserva archivos en GitHub ni en un servidor.";
   } else {
     state.config = { ...state.config, ...(await fetchJson("/api/config")) };
   }
-  elements.modelSelect.value = localStorage.getItem("interview-model") || state.config.model;
-  elements.voiceSelect.value = localStorage.getItem("interview-voice") || state.config.voice;
+  const storedModel = localStorage.getItem("interview-model");
+  const storedVoice = localStorage.getItem("interview-voice");
+  const allowedModels = [...elements.modelSelect.options].map((option) => option.value);
+  const allowedVoices = [...elements.voiceSelect.options].map((option) => option.value);
+  elements.modelSelect.value = allowedModels.includes(storedModel)
+    ? storedModel
+    : state.config.model;
+  elements.voiceSelect.value = allowedVoices.includes(storedVoice)
+    ? storedVoice
+    : state.config.voice;
+  if (!elements.modelSelect.value) elements.modelSelect.value = "gpt-realtime-1.5";
+  if (!elements.voiceSelect.value) elements.voiceSelect.value = "marin";
+  updateVoiceAvailabilityLabels();
   updateKeyStatus();
 }
 
@@ -438,6 +491,7 @@ function updateSelectedPerson() {
     elements.durationLabel.textContent = `Unos ${person.durationMinutes} minutos`;
     elements.sampleGreeting.textContent = `Hola, ${person.name}. Gracias por dedicarme este rato.`;
   }
+  updateVoiceAvailabilityLabels();
   updateStartButtons();
 }
 
@@ -603,7 +657,9 @@ function buildSessionInstructions(person) {
   });
   return `
 Eres la entrevistadora de un proyecto de escucha de Leroy Merlin España.
-Hablas siempre en español de España, con una presencia cálida, serena, femenina y muy natural.
+Hablas siempre en español de España. Suenas como una mujer adulta hablando cara a cara con una sola persona: cercana, cálida, serena, espontánea y perfectamente natural.
+Usa un ritmo conversacional ligeramente pausado, con pausas breves entre ideas. No uses tono de locutora, anuncio, audiolibro, podcast, centralita ni presentación corporativa.
+No cantes las frases, no alargues las vocales y no eleves sistemáticamente la entonación al final. Pronuncia IA como i-a.
 Tu misión es escuchar: no das consejos, no respondes por la persona y no conviertes la entrevista en una conversación sobre ti.
 La aplicación controla el orden de las preguntas. En cada turno recibirás el texto exacto que debes formular.
 Respeta literalmente cada pregunta y no adelantes preguntas futuras.
@@ -668,7 +724,12 @@ function createInterviewPayload(status = state.interviewActive ? "in_progress" :
     endedAt: state.endedAt,
     durationSeconds: durationSeconds(),
     model: elements.modelSelect.value,
-    voice: state.mode === "preview" ? "voz del navegador" : elements.voiceSelect.value,
+    voice:
+      state.mode === "preview"
+        ? hasPublishedVoice(person)
+          ? "OpenAI Marin · audio IA pre-generado"
+          : "solo texto · voz no disponible"
+        : elements.voiceSelect.value,
   };
 }
 
@@ -803,6 +864,7 @@ function resetInterviewState(mode) {
   state.previewStopped = false;
   state.previewSpeaking = false;
   state.previewRecognitionDisabled = false;
+  state.voiceUnavailableNotified = false;
   setAssistantResponding(false);
   state.realtimeEventTypes = [];
   elements.muteButton.classList.remove("is-muted");
@@ -824,12 +886,17 @@ async function startInterview(mode) {
   }
 
   resetInterviewState(mode);
+  if (mode === "preview" && hasPublishedVoice(person)) {
+    publishedVoice.prime(person.id, { kind: "intro", questionIndex: 0 }).catch(() => {});
+  }
   setLoading(
     true,
     mode === "realtime" ? "Preparando tu entrevista" : "Preparando la vista previa",
     mode === "realtime"
-      ? "Conectando el micrófono y GPT‑Realtime‑2.1…"
-      : "Activando la voz y la transcripción del navegador…",
+      ? "Conectando el micrófono, GPT‑Realtime‑1.5 y OpenAI Marin…"
+      : hasPublishedVoice(person)
+        ? "Preparando OpenAI Marin y la transcripción…"
+        : "Preparando la transcripción y el modo de respuesta escrita…",
   );
 
   try {
@@ -934,7 +1001,7 @@ async function activatePreviewFallback() {
   state.previewStopped = false;
   state.awaitingAnswer = true;
   elements.manualAnswerPanel.hidden = false;
-  elements.controlHint.textContent = "Modo de respaldo: puedes hablar con la voz del navegador o escribir tu respuesta.";
+  elements.controlHint.textContent = "Modo de respaldo: escucharás OpenAI Marin y puedes responder hablando o por escrito.";
   setConnectionStatus("warning", "Modo de respaldo");
   setInterviewVisualState("listening", "Puedes continuar");
   elements.liveTranscriptText.textContent = hadUntranscribedAudio
@@ -1155,7 +1222,7 @@ async function beginClosing() {
       await finalizeInterview("completed");
     }
   } else {
-    await speakPreview(`Gracias, ${person.name}. Hemos terminado. Gracias de verdad por tu tiempo y por compartir tu experiencia. La transcripción se preparará para poder trabajar con ella.`, {
+    await speakPreview(`Con esto hemos terminado. Muchas gracias, ${person.name}, por tu tiempo y por todo lo que has compartido. Ahora prepararemos la transcripción para poder trabajar con ella.`, {
       kind: "closing",
     });
     await finalizeInterview("completed");
@@ -1168,9 +1235,10 @@ function wait(milliseconds) {
 
 async function startPreviewInterview(person) {
   elements.manualAnswerPanel.hidden = false;
-  elements.controlHint.textContent = "Vista previa: puedes hablar o escribir tu respuesta.";
+  elements.controlHint.textContent = hasPublishedVoice(person)
+    ? "OpenAI Marin hará las preguntas; puedes responder hablando o por escrito."
+    : "Puedes seguir las preguntas en pantalla y responder hablando o por escrito.";
   initializePreviewRecognition();
-  await wait(250);
   speakPreviewQuestion({ intro: true });
 }
 
@@ -1256,58 +1324,54 @@ function stopPreviewRecognition() {
   }
 }
 
-function getSpanishPreviewVoice() {
-  const voices = window.speechSynthesis?.getVoices?.() || [];
-  const spanishVoices = voices.filter((voice) => /^es([-_]|$)/i.test(voice.lang));
-  const preferredPattern = /M[oó]nica|Paulina|Luciana|Helena|female|mujer|españa/i;
-  return spanishVoices.find((voice) => preferredPattern.test(voice.name)) || spanishVoices[0] || voices[0];
-}
-
-function speakPreview(text, { kind = "question", questionIndex = state.currentQuestionIndex } = {}) {
-  return new Promise((resolve) => {
-    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
-      addTranscriptEntry({ speaker: "interviewer", text, questionIndex });
-      state.awaitingAnswer = kind !== "closing";
-      if (state.awaitingAnswer) startPreviewRecognition();
-      resolve();
-      return;
-    }
-    stopPreviewRecognition();
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "es-ES";
-    utterance.rate = 0.93;
-    utterance.pitch = 1.04;
-    const voice = getSpanishPreviewVoice();
-    if (voice) utterance.voice = voice;
-    state.previewSpeaking = true;
-    state.awaitingAnswer = false;
-    setInterviewVisualState("speaking", "La entrevistadora está hablando");
-    addTranscriptEntry({
-      speaker: "interviewer",
-      text,
-      questionIndex: kind === "closing" ? null : questionIndex,
-      id: `preview-assistant-${crypto.randomUUID()}`,
-    });
-    if (!state.finalizing) saveInterview("in_progress").catch(() => {});
-    const complete = () => {
-      state.previewSpeaking = false;
-      if (state.finalizing) {
-        resolve();
-        return;
-      }
-      if (kind !== "closing") {
-        state.awaitingAnswer = true;
-        setInterviewVisualState("listening", "Te escucho");
-        elements.liveTranscriptText.textContent = "Cuando quieras, puedes responder.";
-        startPreviewRecognition();
-      }
-      resolve();
-    };
-    utterance.addEventListener("end", complete, { once: true });
-    utterance.addEventListener("error", complete, { once: true });
-    window.speechSynthesis.speak(utterance);
+async function speakPreview(
+  text,
+  { kind = "question", questionIndex = state.currentQuestionIndex } = {},
+) {
+  const person = getSelectedInterviewee();
+  stopPreviewRecognition();
+  state.previewSpeaking = true;
+  state.awaitingAnswer = false;
+  setAssistantResponding(true);
+  setInterviewVisualState("speaking", "OpenAI Marin está hablando");
+  addTranscriptEntry({
+    speaker: "interviewer",
+    text,
+    questionIndex: kind === "closing" ? null : questionIndex,
+    id: `preview-assistant-${crypto.randomUUID()}`,
   });
+  if (!state.finalizing) saveInterview("in_progress").catch(() => {});
+
+  try {
+    if (!person || !state.publishedVoiceReady) {
+      const error = new Error("La voz OpenAI Marin no está disponible.");
+      error.code = "VOICE_CLIP_UNAVAILABLE";
+      throw error;
+    }
+    await publishedVoice.play(person.id, { kind, questionIndex });
+  } catch (error) {
+    if (!state.voiceUnavailableNotified || error?.code !== "VOICE_CLIP_UNAVAILABLE") {
+      showToast(
+        error?.code === "VOICE_CLIP_UNAVAILABLE"
+          ? "Este perfil no tiene audio publicado. Puedes seguir leyendo y responder hablando o por escrito."
+          : error.message || "No se ha podido reproducir OpenAI Marin; puedes continuar por texto.",
+        "error",
+        7000,
+      );
+      state.voiceUnavailableNotified = true;
+    }
+  } finally {
+    state.previewSpeaking = false;
+    setAssistantResponding(false);
+  }
+
+  if (state.finalizing) return;
+  if (kind !== "closing") {
+    state.awaitingAnswer = true;
+    setInterviewVisualState("listening", "Te escucho");
+    elements.liveTranscriptText.textContent = "Cuando quieras, puedes responder.";
+    startPreviewRecognition();
+  }
 }
 
 function speakPreviewQuestion({ intro = false, repeat = false } = {}) {
@@ -1316,15 +1380,10 @@ function speakPreviewQuestion({ intro = false, repeat = false } = {}) {
   const question = person.questions[state.currentQuestionIndex];
   let text = question;
   if (intro) {
-    text = `Hola, ${person.name}. Gracias por dedicarme este rato. Me gustaría hacerte una serie de preguntas para entender mejor tu experiencia. No hay respuestas correctas; lo importante es conocer tu punto de vista. Para empezar: ${question}`;
-  } else if (repeat) {
-    text = `Claro. Te repito la pregunta: ${question}`;
-  } else {
-    const acknowledgements = ["Gracias, te sigo.", "Entiendo, gracias.", "De acuerdo, continuamos.", "Gracias por contármelo."];
-    text = `${acknowledgements[state.currentQuestionIndex % acknowledgements.length]} ${question}`;
+    text = `Hola, ${person.name}. Gracias por dedicarme este rato. Me gustaría hacerte unas preguntas para entender mejor tu experiencia. No hay respuestas correctas o incorrectas; me interesa conocer tu punto de vista. ${question}`;
   }
   return speakPreview(text, {
-    kind: repeat ? "repeat" : "question",
+    kind: intro ? "intro" : repeat ? "repeat" : "question",
     questionIndex: state.currentQuestionIndex,
   });
 }
@@ -1344,7 +1403,7 @@ async function submitManualAnswer() {
 async function stopActiveVoice() {
   state.previewStopped = true;
   stopPreviewRecognition();
-  window.speechSynthesis?.cancel?.();
+  publishedVoice.stop();
   if (state.realtime) {
     await state.realtime.close().catch(() => {});
     state.realtime = null;
@@ -1638,7 +1697,9 @@ function toggleMuted() {
   elements.controlHint.textContent = state.muted
     ? "Micrófono silenciado."
     : state.mode === "preview"
-      ? "Vista previa: puedes hablar o escribir tu respuesta."
+      ? hasPublishedVoice()
+        ? "OpenAI Marin hará las preguntas; puedes responder hablando o por escrito."
+        : "Puedes seguir las preguntas en pantalla y responder hablando o por escrito."
       : "Puedes hablar con naturalidad y hacer pausas.";
 }
 
@@ -1766,6 +1827,10 @@ window.__interviewMvp = {
     currentQuestionIndex: state.currentQuestionIndex,
     transcriptEntries: state.transcript.length,
     keyConfigured: state.config.keyConfigured,
+    publishedVoiceReady: state.publishedVoiceReady,
+    previewSpeaking: state.previewSpeaking,
+    awaitingAnswer: state.awaitingAnswer,
+    voiceMetadata: publishedVoice.metadata,
     lastRealtimeEvents: [...state.realtimeEventTypes],
   }),
   getAudioDiagnostics: async () => {

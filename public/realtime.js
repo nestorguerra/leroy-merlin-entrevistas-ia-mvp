@@ -50,7 +50,7 @@ async function readApiError(response, fallback) {
 
 export class RealtimeInterview {
   constructor({
-    model = "gpt-realtime-2.1",
+    model = "gpt-realtime-1.5",
     voice = "marin",
     audioElement,
     onEvent = () => {},
@@ -232,10 +232,9 @@ export class RealtimeInterview {
               },
               output: {
                 voice: this.voice,
-                speed: 1,
+                speed: 0.98,
               },
             },
-            reasoning: { effort: "minimal" },
           },
         });
       } catch (error) {

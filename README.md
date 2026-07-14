@@ -1,12 +1,14 @@
 # Escucha · entrevistas IA para Leroy Merlin
 
-MVP local para realizar entrevistas por voz con `gpt-realtime-2.1`, una guía distinta para cada persona y guardado automático de la transcripción.
+MVP para realizar entrevistas por voz con una guía distinta para cada persona y guardado automático de la transcripción. El modo local usa `gpt-realtime-1.5` con la voz `marin` de OpenAI.
 
 ## Demo en GitHub Pages
 
 [Abrir la demo visual](https://nestorguerra.github.io/leroy-merlin-entrevistas-ia-mvp/)
 
-La demo pública permite recorrer las preguntas, responder hablando o escribiendo y descargar la transcripción en Markdown, TXT y JSON. Funciona solo en el navegador: no incluye ninguna clave y no conecta con OpenAI. La entrevista Realtime completa sigue disponible en la copia local descrita abajo.
+La demo pública permite recorrer las preguntas, responder hablando o escribiendo y descargar la transcripción en Markdown, TXT y JSON. La entrevistadora se oye con audios generados previamente mediante OpenAI `gpt-4o-mini-tts` y la voz `marin`; la interfaz indica expresamente que es una voz generada por IA.
+
+GitHub Pages no contiene ninguna clave ni hace llamadas a OpenAI durante la entrevista: sirve los MP3 ya publicados. Si se importa un perfil que todavía no tiene su paquete de audio, la entrevista continúa por texto, sin sustituirlo por una voz distinta del navegador. La conversación Realtime completa sigue disponible en la copia local descrita abajo.
 
 ## Abrir el MVP
 
@@ -27,7 +29,7 @@ npm start
 3. Pulsa **Guardar clave de forma segura**.
 4. Elige voz y empieza una entrevista.
 
-La clave estándar se guarda solo en `.env.local` y nunca se incluye en el HTML. El navegador recibe de OpenAI una credencial temporal para establecer la conexión WebRTC.
+La clave estándar se guarda solo en `.env.local` y nunca se incluye en el HTML, los audios ni GitHub Pages. El navegador recibe de OpenAI una credencial temporal para establecer la conexión WebRTC con `gpt-realtime-1.5` y la voz `marin`.
 
 ## Cargar personas y preguntas
 
@@ -54,11 +56,29 @@ Al terminar se generan tres archivos con el mismo identificador:
 
 La transcripción se puede corregir desde la propia interfaz antes de descargarla.
 
+## Generar la voz de GitHub Pages
+
+Con una clave válida guardada en `.env.local`, genera o actualiza todos los MP3 y el manifiesto con:
+
+```bash
+npm run generate:voice
+```
+
+El proceso usa `gpt-4o-mini-tts` y `marin`, y guarda únicamente los audios publicados en `public/audio/openai-marin-v1/`. Para regenerar un clip concreto o ajustar la concurrencia:
+
+```bash
+npm run generate:voice -- --only=demo-operaciones:intro --force
+npm run generate:voice -- --concurrency=3
+```
+
+La clave se lee solo desde el entorno local y nunca se escribe en el manifiesto.
+
 ## Privacidad del MVP
 
-- El audio viaja en tiempo real a OpenAI para mantener la conversación.
-- OpenAI procesa también el nombre, cargo, área, contexto y preguntas necesarios para personalizarla.
-- En **Probar el recorrido**, el reconocimiento hablado puede usar el servicio de voz del navegador; siempre se puede responder por escrito.
+- En el modo local Realtime, el audio viaja en tiempo real a OpenAI para mantener la conversación.
+- En ese modo, OpenAI procesa también el nombre, cargo, área, contexto y preguntas necesarios para personalizarla.
+- En GitHub Pages, la voz de la entrevistadora es audio generado por IA y publicado previamente; la página no envía las respuestas a OpenAI.
+- En **Probar el recorrido** y en GitHub Pages, el reconocimiento hablado puede usar el servicio de voz del navegador; siempre se puede responder por escrito.
 - El servidor local no guarda audio.
 - Solo se conserva la transcripción y la ficha de la entrevista.
 - La pantalla pide consentimiento antes de empezar.
@@ -74,12 +94,14 @@ npm run check
 npm test
 ```
 
-El modo **Probar el recorrido** permite revisar la interfaz, la secuencia de preguntas y las exportaciones sin consumir la API de OpenAI.
+El modo **Probar el recorrido** permite revisar la interfaz, la secuencia de preguntas y las exportaciones sin hacer llamadas nuevas a la API de OpenAI. En Pages reproduce los audios de OpenAI ya publicados.
 
 ## Fuentes técnicas y visuales
 
 - [OpenAI Realtime con WebRTC](https://developers.openai.com/api/docs/guides/realtime-webrtc)
-- [Modelo GPT‑Realtime‑2.1](https://developers.openai.com/api/docs/models/gpt-realtime-2.1)
+- [Modelo GPT‑Realtime‑1.5](https://developers.openai.com/api/docs/models/gpt-realtime-1.5)
+- [Texto a voz de OpenAI](https://developers.openai.com/api/docs/guides/text-to-speech)
+- [Opciones de voz de Realtime](https://developers.openai.com/api/docs/guides/realtime-conversations#voice-options)
 - [Eventos de Realtime](https://developers.openai.com/api/reference/resources/realtime/server-events)
 - [Recursos gráficos oficiales de Leroy Merlin](https://corporativo.leroymerlin.es/recursos-graficos)
 - [Web actual de Leroy Merlin España](https://www.leroymerlin.es/)
