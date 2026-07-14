@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="MVP local de entrevistas hiperpersonalizadas por voz para Leroy Merlin."
+    />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Escucha · Entrevistas IA</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell" id="appShell">
+      <header class="app-header" id="appHeader">
+        <a class="brand" href="/" aria-label="Volver al inicio">
+          <img
+            class="brand__logo"
+            src="/leroy-merlin-logo.jpg"
+            alt="Leroy Merlin"
+            width="104"
+            height="63"
+          />
+          <span class="brand__divider" aria-hidden="true"></span>
+          <span class="brand__product">
+            <strong>escucha</strong>
+            <small>entrevistas IA</small>
+          </span>
+        </a>
+
+        <div class="header-actions">
+          <span class="connection-pill" id="connectionPill">
+            <span class="connection-pill__dot" aria-hidden="true"></span>
+            <span id="connectionLabel">Preparando</span>
+          </span>
+          <button class="icon-button" id="openSettingsButton" type="button" aria-label="Abrir ajustes">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+              <path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.06.06-2.78 2.78-.06-.06A1.8 1.8 0 0 0 15 19.4a1.8 1.8 0 0 0-1.1 1.65V21H10v-.08A1.8 1.8 0 0 0 8.9 19.3a1.8 1.8 0 0 0-1.98.36l-.06.06-2.78-2.78.06-.06A1.8 1.8 0 0 0 4.5 15a1.8 1.8 0 0 0-1.65-1.1H2V10h.08A1.8 1.8 0 0 0 3.7 8.9a1.8 1.8 0 0 0-.36-1.98l-.06-.06 2.78-2.78.06.06A1.8 1.8 0 0 0 8.1 4.5a1.8 1.8 0 0 0 1.1-1.65V2H13v.08a1.8 1.8 0 0 0 1.1 1.62 1.8 1.8 0 0 0 1.98-.36l.06-.06 2.78 2.78-.06.06a1.8 1.8 0 0 0-.36 1.98 1.8 1.8 0 0 0 1.65 1.1H21V13h-.08A1.8 1.8 0 0 0 19.4 15Z" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="app-main">
+        <section class="screen screen--setup is-active" id="setupScreen" aria-labelledby="welcomeTitle">
+          <div class="welcome-grid">
+            <div class="welcome-copy">
+              <div class="eyebrow"><span></span>MVP · escucha personalizada</div>
+              <h1 id="welcomeTitle">Una conversación pensada para ti.</h1>
+              <p class="welcome-lead">
+                Queremos entender cómo trabajas, qué necesitas y qué podríamos hacer más fácil.
+                Sin formularios. Sin respuestas prefabricadas. Solo una conversación.
+              </p>
+
+              <div class="selected-person" id="selectedPersonSummary" aria-live="polite">
+                <div class="selected-person__avatar" id="selectedPersonInitial">C</div>
+                <div>
+                  <span>Entrevista preparada para</span>
+                  <strong id="selectedPersonName">Carmen · perfil de demostración</strong>
+                  <small id="selectedPersonRole">Dirección de Operaciones de Tienda</small>
+                </div>
+              </div>
+
+              <label class="consent-check">
+                <input type="checkbox" id="consentCheckbox" />
+                <span class="consent-check__box" aria-hidden="true">
+                  <svg viewBox="0 0 16 16"><path d="m3 8 3 3 7-7" /></svg>
+                </span>
+                <span>
+                  Acepto participar, el tratamiento indicado y que se guarde la transcripción para analizar esta entrevista.
+                  <button class="text-link" id="openPrivacyButton" type="button">Cómo se tratan los datos</button>
+                </span>
+              </label>
+
+              <div class="setup-actions">
+                <button class="button button--primary" id="startRealtimeButton" type="button" disabled>
+                  <span>Empezar entrevista</span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+                </button>
+                <button class="button button--secondary" id="startPreviewButton" type="button" disabled>
+                  Probar el recorrido
+                </button>
+              </div>
+
+              <div class="trust-row" aria-label="Información de la entrevista">
+                <span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></svg>
+                  Texto guardado en este Mac
+                </span>
+                <span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                  <span id="durationLabel">Unos 22 minutos</span>
+                </span>
+                <span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" /></svg>
+                  No se guarda el audio
+                </span>
+              </div>
+            </div>
+
+            <div class="welcome-presence" aria-label="Presencia visual de la entrevistadora">
+              <div class="presence-frame">
+                <canvas class="presence-canvas" id="welcomeCanvas"></canvas>
+                <div class="presence-aura" aria-hidden="true"></div>
+                <div class="presence-caption">
+                  <span class="presence-caption__status"><i></i>Lista para escucharte</span>
+                  <strong>Una voz cálida.<br />Una pregunta cada vez.</strong>
+                </div>
+              </div>
+              <div class="mini-quote">
+                <span>“</span>
+                <p id="sampleGreeting">Hola, Carmen. Gracias por dedicarme este rato.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="people-section">
+            <div class="section-heading">
+              <div>
+                <span>Perfiles disponibles</span>
+                <h2>Elige la entrevista que quieres probar</h2>
+              </div>
+              <button class="text-action" id="manageProfilesButton" type="button">
+                Cargar personas y preguntas
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 15v5h14v-5" /></svg>
+              </button>
+            </div>
+            <div class="people-grid" id="peopleGrid" aria-live="polite">
+              <div class="profile-skeleton"></div>
+              <div class="profile-skeleton"></div>
+              <div class="profile-skeleton"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="screen screen--interview" id="interviewScreen" aria-labelledby="currentQuestionText">
+          <div class="interview-topbar">
+            <button class="back-button" id="leaveInterviewButton" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+              Salir
+            </button>
+            <div class="interview-person">
+              <div class="interview-person__initial" id="interviewPersonInitial">C</div>
+              <div>
+                <strong id="interviewPersonName">Carmen</strong>
+                <span id="interviewPersonRole">Operaciones</span>
+              </div>
+            </div>
+            <div class="interview-meta">
+              <span id="questionCounter">Pregunta 1 de 13</span>
+              <span class="meta-separator"></span>
+              <time id="interviewTimer">00:00</time>
+            </div>
+          </div>
+
+          <div class="progress-track" aria-hidden="true">
+            <span id="progressBar"></span>
+          </div>
+
+          <div class="interview-layout">
+            <aside class="question-map" id="questionMap" aria-label="Progreso de preguntas">
+              <div class="question-map__header">
+                <span>Recorrido</span>
+                <button class="rail-toggle" id="toggleQuestionMapButton" type="button" aria-label="Ocultar recorrido">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+                </button>
+              </div>
+              <ol id="questionMapList"></ol>
+            </aside>
+
+            <div class="interview-stage">
+              <div class="live-state" id="liveState">
+                <span class="live-state__dot"></span>
+                <span id="liveStateLabel">Conectando…</span>
+              </div>
+
+              <div class="orb-wrap" id="orbWrap">
+                <canvas class="presence-canvas presence-canvas--interview" id="interviewCanvas"></canvas>
+                <div class="sound-rings" aria-hidden="true"><i></i><i></i><i></i></div>
+              </div>
+
+              <div class="question-copy">
+                <span class="question-kicker" id="questionKicker">PARA EMPEZAR</span>
+                <h2 id="currentQuestionText">Preparando la primera pregunta…</h2>
+              </div>
+
+              <div class="live-transcript" id="liveTranscript" aria-live="polite">
+                <span>Transcripción en directo</span>
+                <p id="liveTranscriptText">Cuando hables, tus palabras aparecerán aquí.</p>
+              </div>
+
+              <div class="manual-answer" id="manualAnswerPanel" hidden>
+                <label for="manualAnswerInput">También puedes responder escribiendo</label>
+                <div>
+                  <textarea
+                    id="manualAnswerInput"
+                    rows="2"
+                    placeholder="Escribe aquí tu respuesta…"
+                  ></textarea>
+                  <button id="submitManualAnswerButton" type="button">Enviar</button>
+                </div>
+              </div>
+
+              <div class="interview-controls">
+                <button class="round-control" id="muteButton" type="button" aria-label="Silenciar micrófono">
+                  <svg class="mic-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" /></svg>
+                  <svg class="mic-off" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M9 9v3a3 3 0 0 0 4.8 2.4M15 10V5a3 3 0 0 0-5.1-2.1M5 10v2a7 7 0 0 0 11.7 5.2M12 19v3M8 22h8" /></svg>
+                </button>
+                <button class="round-control" id="repeatQuestionButton" type="button" aria-label="Repetir pregunta">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M10 9v6l5-3-5-3Z" /></svg>
+                </button>
+                <button class="round-control round-control--end" id="finishInterviewButton" type="button" aria-label="Terminar entrevista">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5z" /></svg>
+                </button>
+              </div>
+              <p class="control-hint" id="controlHint">Puedes hablar con naturalidad y hacer pausas.</p>
+            </div>
+
+            <aside class="notes-panel" id="notesPanel" aria-label="Respuestas guardadas">
+              <div class="notes-panel__header">
+                <div>
+                  <span>En directo</span>
+                  <strong>Respuestas guardadas</strong>
+                </div>
+                <span class="save-state" id="saveState"><i></i>Al día</span>
+              </div>
+              <div class="answer-list" id="answerList">
+                <div class="empty-answers">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>
+                  <p>Las respuestas irán apareciendo aquí sin interrumpir la conversación.</p>
+                </div>
+              </div>
+              <button class="edit-transcript-button" id="openTranscriptButton" type="button">
+                Ver y corregir transcripción
+              </button>
+            </aside>
+          </div>
+        </section>
+
+        <section class="screen screen--complete" id="completeScreen" aria-labelledby="completeTitle">
+          <div class="completion-card">
+            <div class="completion-visual">
+              <canvas class="presence-canvas" id="completeCanvas"></canvas>
+              <div class="completion-check" aria-hidden="true">
+                <svg viewBox="0 0 32 32"><path d="m8 16 5 5 11-11" /></svg>
+              </div>
+            </div>
+            <div class="eyebrow"><span></span>Entrevista guardada</div>
+            <h1 id="completeTitle">Gracias por compartir tu experiencia.</h1>
+            <p>
+              La transcripción ya está preparada. Puedes revisarla o descargarla para trabajar con ella.
+            </p>
+
+            <div class="completion-stats">
+              <div><strong id="completedQuestionsStat">13</strong><span>respuestas</span></div>
+              <div><strong id="completedDurationStat">22 min</strong><span>de conversación</span></div>
+              <div><strong>3</strong><span>formatos listos</span></div>
+            </div>
+
+            <div class="completion-actions">
+              <a class="button button--primary" id="downloadMarkdownButton" href="#" download>
+                Descargar entrevista
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
+              </a>
+              <button class="button button--secondary" id="reviewTranscriptButton" type="button">
+                Revisar transcripción
+              </button>
+            </div>
+            <div class="format-links">
+              También disponible en
+              <a id="downloadTextButton" href="#" download>TXT</a>
+              <span>·</span>
+              <a id="downloadJsonButton" href="#" download>JSON</a>
+            </div>
+            <button class="new-interview-button" id="newInterviewButton" type="button">
+              Hacer otra entrevista
+            </button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="settings-dialog" id="settingsDialog">
+      <div class="dialog-shell">
+        <div class="dialog-header">
+          <div>
+            <span>Ajustes del MVP</span>
+            <h2>Configuración</h2>
+          </div>
+          <button class="icon-button" id="closeSettingsButton" type="button" aria-label="Cerrar ajustes">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5 5 19" /></svg>
+          </button>
+        </div>
+
+        <div class="settings-tabs" role="tablist">
+          <button class="is-active" type="button" role="tab" data-settings-tab="voice">Voz y modelo</button>
+          <button type="button" role="tab" data-settings-tab="people">Personas</button>
+          <button type="button" role="tab" data-settings-tab="history">Historial</button>
+        </div>
+
+        <div class="settings-content">
+          <section class="settings-panel is-active" data-settings-panel="voice">
+            <div class="settings-status-card" id="keyStatusCard">
+              <div class="settings-status-card__icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></svg>
+              </div>
+              <div>
+                <strong id="keyStatusTitle">Comprobando clave…</strong>
+                <span id="keyStatusDescription">La clave completa nunca se muestra en el navegador.</span>
+              </div>
+            </div>
+
+            <form class="field-group" id="apiKeyForm">
+              <label for="apiKeyInput">Clave de OpenAI</label>
+              <div class="password-field">
+                <input
+                  id="apiKeyInput"
+                  type="password"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="sk-proj-••••••••••••••••"
+                />
+                <button id="toggleKeyVisibilityButton" type="button" aria-label="Mostrar u ocultar clave">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>
+                </button>
+              </div>
+              <p>
+                Se guarda en <code>.env.local</code>, solo en este ordenador. El navegador recibe una credencial temporal.
+              </p>
+              <button class="button button--primary button--compact" id="saveApiKeyButton" type="button">
+                Guardar clave de forma segura
+              </button>
+            </form>
+
+            <div class="settings-two-columns">
+              <div class="field-group">
+                <label for="modelSelect">Modelo Realtime</label>
+                <select id="modelSelect">
+                  <option value="gpt-realtime-2.1">GPT‑Realtime‑2.1</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="voiceSelect">Voz</label>
+                <select id="voiceSelect">
+                  <option value="marin">Marin · cálida</option>
+                  <option value="coral">Coral · luminosa</option>
+                  <option value="shimmer">Shimmer · suave</option>
+                  <option value="cedar">Cedar · serena</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="info-note">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
+              <p>
+                En modo Realtime, OpenAI procesa temporalmente el audio y los datos necesarios para personalizar las preguntas. El audio no se guarda en este MVP.
+              </p>
+            </div>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="people">
+            <div class="upload-card">
+              <div class="upload-card__icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 15v5h14v-5" /></svg>
+              </div>
+              <h3>Carga tu lista real</h3>
+              <p>
+                Un archivo JSON con una ficha por persona y entre 12 y 15 preguntas personalizadas para cada una.
+              </p>
+              <input id="profilesFileInput" type="file" accept="application/json,.json" hidden />
+              <button class="button button--primary button--compact" id="chooseProfilesFileButton" type="button">
+                Elegir archivo JSON
+              </button>
+              <a class="secondary-link" href="/api/interviewees/template" download>Descargar plantilla</a>
+              <span class="upload-feedback" id="uploadFeedback"></span>
+            </div>
+
+            <div class="profiles-summary">
+              <div>
+                <span>Configuración actual</span>
+                <strong id="profilesCount">— personas</strong>
+              </div>
+              <button class="text-action" id="refreshProfilesButton" type="button">Actualizar</button>
+            </div>
+            <div class="settings-profile-list" id="settingsProfileList"></div>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="history">
+            <div class="history-heading">
+              <h3>Entrevistas guardadas</h3>
+              <span>En este ordenador</span>
+            </div>
+            <div class="history-list" id="historyList">
+              <div class="history-empty">Todavía no hay entrevistas guardadas.</div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog class="privacy-dialog" id="privacyDialog">
+      <div class="privacy-shell">
+        <button class="icon-button privacy-close" id="closePrivacyButton" type="button" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5 5 19" /></svg>
+        </button>
+        <span class="privacy-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="M9 11h6v5H9zM10 11V9a2 2 0 0 1 4 0v2" /></svg>
+        </span>
+        <h2>Tu voz no se guarda.</h2>
+        <p>
+          En la entrevista Realtime, OpenAI procesa temporalmente el audio junto con el nombre, cargo, área, contexto y preguntas necesarios para personalizar la conversación. Este MVP no guarda el audio.
+        </p>
+        <ul>
+          <li>En «Probar el recorrido», si respondes hablando, el reconocimiento puede usar el servicio de voz de tu navegador; también puedes responder solo por escrito.</li>
+          <li>En este Mac se conservan el texto transcrito, el perfil y las preguntas.</li>
+          <li>Puedes terminar la entrevista en cualquier momento.</li>
+          <li>Puedes corregir el texto antes de descargarlo.</li>
+          <li>Los archivos quedan en la carpeta local <code>data/interviews</code>.</li>
+        </ul>
+        <button class="button button--primary" id="acceptPrivacyButton" type="button">Entendido</button>
+      </div>
+    </dialog>
+
+    <dialog class="transcript-dialog" id="transcriptDialog">
+      <div class="transcript-shell">
+        <div class="dialog-header">
+          <div>
+            <span>Revisión</span>
+            <h2>Transcripción de la entrevista</h2>
+          </div>
+          <button class="icon-button" id="closeTranscriptButton" type="button" aria-label="Cerrar transcripción">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5 5 19" /></svg>
+          </button>
+        </div>
+        <p class="transcript-help">Corrige cualquier palabra que la transcripción automática no haya entendido bien.</p>
+        <div class="transcript-editor" id="transcriptEditor"></div>
+        <div class="transcript-dialog__actions">
+          <span id="transcriptSaveStatus">Todos los cambios guardados</span>
+          <button class="button button--primary button--compact" id="saveTranscriptEditsButton" type="button">
+            Guardar cambios
+          </button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog class="confirm-dialog" id="confirmDialog">
+      <div>
+        <span class="confirm-dialog__icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v6M12 17h.01" /></svg>
+        </span>
+        <h2 id="confirmTitle">¿Terminar la entrevista?</h2>
+        <p id="confirmMessage">Lo que llevamos se guardará y podrás descargarlo.</p>
+        <div>
+          <button class="button button--secondary" id="confirmCancelButton" type="button">Seguir hablando</button>
+          <button class="button button--danger" id="confirmAcceptButton" type="button">Terminar</button>
+        </div>
+      </div>
+    </dialog>
+
+    <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+    <div class="loading-overlay" id="loadingOverlay" hidden>
+      <div class="loading-orb"><i></i><i></i><i></i></div>
+      <strong id="loadingTitle">Preparando tu entrevista</strong>
+      <span id="loadingMessage">Conectando el micrófono y la voz…</span>
+    </div>
+    <audio id="remoteAudio" autoplay></audio>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

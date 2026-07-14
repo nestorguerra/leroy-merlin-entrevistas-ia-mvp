@@ -1,0 +1,15 @@
+{
+  "name": "leroy-merlin-entrevistas-ia-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MVP local de entrevistas hiperpersonalizadas con OpenAI Realtime.",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs && node --check public/app.js && node --check public/realtime.js && node --check public/orb.js",
+    "test": "node --test test/server.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

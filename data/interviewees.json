@@ -1,0 +1,78 @@
+[
+  {
+    "id": "demo-operaciones",
+    "name": "Carmen",
+    "fullName": "Carmen · perfil de demostración",
+    "role": "Dirección de Operaciones de Tienda",
+    "area": "Operaciones",
+    "durationMinutes": 22,
+    "isDemo": true,
+    "context": "Entrevista para detectar fricciones operativas, oportunidades de automatización y condiciones reales de adopción en tienda.",
+    "questions": [
+      "Para empezar, piensa en una semana normal: ¿qué parte de la operación de tienda te roba más tiempo o energía y por qué?",
+      "Cuéntame un proceso reciente que pareciera sencillo sobre el papel, pero que en la práctica se complicara por coordinaciones, esperas o información incompleta.",
+      "¿Qué decisiones importantes estás tomando hoy con datos que llegan tarde, fragmentados o que no terminan de darte confianza?",
+      "¿Qué tareas repetitivas ves hacer a los equipos cada día que aportan poco valor al cliente, pero que nadie ha conseguido eliminar?",
+      "Cuando una iniciativa nace en servicios centrales y llega a tienda, ¿en qué punto suele perder claridad, velocidad o sentido práctico?",
+      "¿Qué diferencias entre tiendas hacen que una solución única sea difícil de aplicar sin adaptaciones?",
+      "¿Dónde ves ahora mismo la mayor fricción para el cliente: antes de venir, durante su visita o después de comprar? Ponme un ejemplo concreto.",
+      "¿Qué habéis probado ya con automatización o inteligencia artificial y qué aprendisteis, incluso si el resultado no fue el esperado?",
+      "¿Qué tendría que hacer una herramienta inteligente para que un jefe de sector dijera: esto sí me ayuda de verdad?",
+      "¿Qué información no debería usar nunca esa herramienta y qué decisiones tendrían que seguir siendo humanas?",
+      "Si solo pudiéramos medir tres señales para saber si un piloto funciona, ¿cuáles elegirías?",
+      "¿Qué tienda, proceso y equipo escogerías para probar algo durante seis semanas con posibilidades reales de aprender rápido?",
+      "Para cerrar: si dentro de un año esta iniciativa hubiera salido francamente bien, ¿qué habría cambiado en el día a día de las tiendas?"
+    ]
+  },
+  {
+    "id": "demo-datos",
+    "name": "Álex",
+    "fullName": "Álex · perfil de demostración",
+    "role": "Responsable de Datos y Analítica",
+    "area": "Datos",
+    "durationMinutes": 24,
+    "isDemo": true,
+    "context": "Entrevista para entender calidad, accesibilidad y gobernanza del dato, así como los casos de uso con mejor relación entre valor y esfuerzo.",
+    "questions": [
+      "Para situarnos, ¿qué pregunta de negocio importante os cuesta más responder hoy con rapidez y confianza?",
+      "Llévame desde que se genera un dato relevante hasta que acaba en un informe o en una decisión: ¿dónde aparecen las mayores pérdidas de tiempo o calidad?",
+      "¿Qué fuentes o equipos generan más incidencias de nomenclatura, duplicados o criterios distintos?",
+      "¿Qué parte del trabajo del equipo de datos sigue dependiendo demasiado de copiar, conciliar o explicar información manualmente?",
+      "Cuando dos indicadores aparentemente iguales no coinciden, ¿cómo se resuelve hoy y cuánto cuesta llegar a una versión aceptada?",
+      "¿Qué demandas recurrentes recibís del negocio que podrían convertirse en un servicio de autosuficiencia bien gobernado?",
+      "¿En qué casos una interfaz conversacional tendría sentido y en cuáles añadiría más ruido que valor?",
+      "¿Qué activos de datos están realmente preparados para alimentar un caso de IA y cuáles necesitarían una limpieza o rediseño previo?",
+      "¿Qué riesgos de privacidad, permisos o trazabilidad te preocupan especialmente al pensar en asistentes que consulten información interna?",
+      "¿Qué tendría que registrar el sistema para que cada respuesta pudiera auditarse y el usuario supiera de dónde sale?",
+      "¿Qué caso de uso permitiría demostrar valor en pocas semanas sin crear una deuda técnica difícil de sostener?",
+      "¿Qué capacidades faltan hoy —personas, plataforma, gobierno o patrocinio— para escalar después de un piloto?",
+      "Para terminar: ¿qué resultado haría que el equipo de datos considerase esta iniciativa una ayuda y no otra capa de demanda?"
+    ]
+  },
+  {
+    "id": "demo-personas",
+    "name": "Lucía",
+    "fullName": "Lucía · perfil de demostración",
+    "role": "Dirección de Personas y Talento",
+    "area": "Personas",
+    "durationMinutes": 25,
+    "isDemo": true,
+    "context": "Entrevista para explorar cómo cambia el trabajo, dónde apoyar a los equipos y qué condiciones de confianza necesita la adopción de IA.",
+    "questions": [
+      "Para empezar por lo concreto, ¿qué cambio en la forma de trabajar está generando hoy más preguntas o inquietud entre los equipos?",
+      "¿En qué momentos del recorrido del empleado —incorporación, aprendizaje, movilidad o gestión— se pierden más tiempo y oportunidades?",
+      "Cuéntame una tarea de un mando intermedio que haya crecido mucho en complejidad durante los últimos años.",
+      "¿Qué trabajos invisibles hacen las personas para compensar procesos o herramientas que no funcionan del todo bien?",
+      "¿Dónde ves mayor distancia entre las capacidades que la organización necesita y las que hoy puede desplegar con facilidad?",
+      "¿Qué colectivos podrían beneficiarse antes de un asistente inteligente y cuáles necesitarían más acompañamiento?",
+      "¿Qué señales de rechazo o fatiga tecnológica deberíamos escuchar antes de lanzar un piloto?",
+      "¿Cómo tendría que explicarse el uso de datos y de IA para que las personas sintieran claridad y control, no vigilancia?",
+      "¿Qué decisiones sobre personas deberían quedar expresamente fuera de la automatización?",
+      "¿Qué nueva capacidad deberían desarrollar los responsables de equipo para dirigir una combinación de personas y asistentes de IA?",
+      "Si diseñáramos un piloto con empleados voluntarios, ¿qué apoyo, tiempo y reconocimiento necesitarían para participar de verdad?",
+      "¿Qué indicadores combinarías para medir productividad sin perder de vista aprendizaje, bienestar y calidad del trabajo?",
+      "Para cerrar: dentro de un año, ¿qué tendría que contar un empleado para que tú dijeras que esta transformación ha merecido la pena?"
+    ]
+  }
+]
+

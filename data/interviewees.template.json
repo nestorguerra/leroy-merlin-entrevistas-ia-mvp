@@ -1,0 +1,26 @@
+[
+  {
+    "id": "nombre-apellido",
+    "name": "Nombre",
+    "fullName": "Nombre Apellido",
+    "role": "Cargo",
+    "area": "Área",
+    "durationMinutes": 20,
+    "isDemo": false,
+    "context": "Contexto privado que ayudará a personalizar el tono de la entrevista.",
+    "questions": [
+      "Pregunta personalizada 1",
+      "Pregunta personalizada 2",
+      "Pregunta personalizada 3",
+      "Pregunta personalizada 4",
+      "Pregunta personalizada 5",
+      "Pregunta personalizada 6",
+      "Pregunta personalizada 7",
+      "Pregunta personalizada 8",
+      "Pregunta personalizada 9",
+      "Pregunta personalizada 10",
+      "Pregunta personalizada 11",
+      "Pregunta personalizada 12"
+    ]
+  }
+]
