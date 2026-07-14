@@ -24,7 +24,7 @@ const ENV_FILE = join(ROOT, ".env.local");
 // Este MVP maneja credenciales y transcripciones: nunca se expone a la red local.
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.PORT || 4177);
-const DEFAULT_MODEL = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-2.1";
+const DEFAULT_MODEL = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-1.5";
 const DEFAULT_VOICE = process.env.OPENAI_REALTIME_VOICE || "marin";
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
 const ALLOWED_VOICES = new Set([
@@ -39,6 +39,7 @@ const ALLOWED_VOICES = new Set([
   "marin",
   "cedar",
 ]);
+const ALLOWED_MODELS = new Set(["gpt-realtime-1.5", "gpt-realtime-2.1"]);
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -51,6 +52,7 @@ const MIME_TYPES = {
   ".jpeg": "image/jpeg",
   ".webp": "image/webp",
   ".ico": "image/x-icon",
+  ".mp3": "audio/mpeg",
   ".txt": "text/plain; charset=utf-8",
   ".md": "text/markdown; charset=utf-8",
 };
@@ -275,7 +277,7 @@ async function createRealtimeClientSecret({ model, voice }) {
     throw error;
   }
 
-  const selectedModel = model === "gpt-realtime-2.1" ? model : DEFAULT_MODEL;
+  const selectedModel = ALLOWED_MODELS.has(model) ? model : DEFAULT_MODEL;
   const selectedVoice = ALLOWED_VOICES.has(voice) ? voice : DEFAULT_VOICE;
   const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
     method: "POST",

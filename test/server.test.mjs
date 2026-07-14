@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { spawn } from "node:child_process";
 import { request } from "node:http";
-import { rm } from "node:fs/promises";
+import { readFile, rm, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
@@ -84,7 +84,7 @@ test("sirve el MVP y anuncia el modelo Realtime correcto", async () => {
 
   const { response, body } = await api("/api/config");
   assert.equal(response.status, 200);
-  assert.equal(body.model, "gpt-realtime-2.1");
+  assert.equal(body.model, "gpt-realtime-1.5");
   assert.equal(typeof body.keyConfigured, "boolean");
   assert.equal("apiKey" in body, false);
 });
@@ -99,6 +99,75 @@ test("cada perfil incluye entre 12 y 15 preguntas personalizadas", async () => {
     assert.ok(person.context);
   }
   assert.notDeepEqual(body.interviewees[0].questions, body.interviewees[1].questions);
+});
+
+test("el paquete publicado de OpenAI Marin cubre los tres perfiles", async () => {
+  const interviewees = JSON.parse(
+    await readFile(join(ROOT, "data", "interviewees.json"), "utf8"),
+  );
+  const manifest = JSON.parse(
+    await readFile(
+      join(ROOT, "public", "audio", "openai-marin-v1", "manifest.json"),
+      "utf8",
+    ),
+  );
+
+  assert.equal(manifest.model, "gpt-4o-mini-tts");
+  assert.equal(manifest.voice, "marin");
+  assert.match(manifest.disclosure, /voz generada por inteligencia artificial/i);
+  assert.equal(interviewees.length, 3);
+  assert.deepEqual(Object.keys(manifest.profiles), interviewees.map((person) => person.id));
+
+  for (const person of interviewees) {
+    const profile = manifest.profiles[person.id];
+    assert.ok(profile, `Falta el perfil de audio ${person.id}`);
+    assert.equal(profile.name, person.name);
+    assert.equal(Object.keys(profile.clips).length, person.questions.length + 2);
+
+    const expectedIntro = [
+      `Hola, ${person.name}. Gracias por dedicarme este rato.`,
+      "Me gustaría hacerte unas preguntas para entender mejor tu experiencia.",
+      "No hay respuestas correctas o incorrectas; me interesa conocer tu punto de vista.",
+      person.questions[0],
+    ].join(" ");
+    const expectedClosing = [
+      "Con esto hemos terminado.",
+      `Muchas gracias, ${person.name}, por tu tiempo y por todo lo que has compartido.`,
+      "Ahora prepararemos la transcripción para poder trabajar con ella.",
+    ].join(" ");
+
+    assert.equal(profile.clips.intro.kind, "intro");
+    assert.equal(profile.clips.intro.questionIndex, 0);
+    assert.equal(profile.clips.intro.text, expectedIntro);
+    assert.equal(profile.clips.closing.kind, "closing");
+    assert.equal(profile.clips.closing.questionIndex, null);
+    assert.equal(profile.clips.closing.text, expectedClosing);
+
+    const expectedClips = [
+      ["intro", profile.clips.intro],
+      ...person.questions.map((question, index) => {
+        const key = `question-${String(index + 1).padStart(2, "0")}`;
+        const clip = profile.clips[key];
+        assert.ok(clip, `Falta ${person.id}:${key}`);
+        assert.equal(clip.kind, "question");
+        assert.equal(clip.questionIndex, index);
+        assert.equal(clip.text, question);
+        return [key, clip];
+      }),
+      ["closing", profile.clips.closing],
+    ];
+
+    for (const [key, clip] of expectedClips) {
+      assert.equal(
+        clip.path,
+        `./audio/openai-marin-v1/${person.id}/${key}.mp3`,
+      );
+      const audioPath = join(ROOT, "public", clip.path.replace(/^\.\//, ""));
+      const audio = await stat(audioPath);
+      assert.ok(audio.isFile(), `${audioPath} no es un archivo`);
+      assert.ok(audio.size > 1_000, `${audioPath} está vacío o incompleto`);
+    }
+  }
 });
 
 test("rechaza una carga con menos de 12 preguntas sin alterar los perfiles", async () => {
@@ -136,7 +205,7 @@ test("guarda y exporta una entrevista en JSON, Markdown y texto", async () => {
     startedAt: new Date(Date.now() - 120000).toISOString(),
     endedAt: new Date().toISOString(),
     durationSeconds: 120,
-    model: "gpt-realtime-2.1",
+    model: "gpt-realtime-1.5",
     voice: "marin",
     transcript: [
       {

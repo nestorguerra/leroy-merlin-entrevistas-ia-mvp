@@ -96,7 +96,7 @@
                 </span>
                 <span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" /></svg>
-                  No se guarda el audio
+                  <span id="voiceTrustLabel">Voz IA de OpenAI · Marin</span>
                 </span>
               </div>
             </div>
@@ -106,7 +106,7 @@
                 <canvas class="presence-canvas" id="welcomeCanvas"></canvas>
                 <div class="presence-aura" aria-hidden="true"></div>
                 <div class="presence-caption">
-                  <span class="presence-caption__status"><i></i>Lista para escucharte</span>
+                  <span class="presence-caption__status" id="presenceVoiceLabel"><i></i>Voz generada por IA · OpenAI Marin</span>
                   <strong>Una voz cálida.<br />Una pregunta cada vez.</strong>
                 </div>
               </div>
@@ -339,16 +339,13 @@
               <div class="field-group">
                 <label for="modelSelect">Modelo Realtime</label>
                 <select id="modelSelect">
-                  <option value="gpt-realtime-2.1">GPT‑Realtime‑2.1</option>
+                  <option value="gpt-realtime-1.5">GPT‑Realtime‑1.5 · mejor voz</option>
                 </select>
               </div>
               <div class="field-group">
                 <label for="voiceSelect">Voz</label>
                 <select id="voiceSelect">
-                  <option value="marin">Marin · cálida</option>
-                  <option value="coral">Coral · luminosa</option>
-                  <option value="shimmer">Shimmer · suave</option>
-                  <option value="cedar">Cedar · serena</option>
+                  <option value="marin">Marin · máxima calidad</option>
                 </select>
               </div>
             </div>
@@ -356,7 +353,7 @@
             <div class="info-note">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
               <p>
-                En modo Realtime, OpenAI procesa temporalmente el audio y los datos necesarios para personalizar las preguntas. El audio no se guarda en este MVP.
+                Marin es una voz generada por inteligencia artificial. En modo Realtime, OpenAI procesa temporalmente el audio y los datos necesarios para personalizar las preguntas. El audio no se guarda en este MVP.
               </p>
             </div>
           </section>

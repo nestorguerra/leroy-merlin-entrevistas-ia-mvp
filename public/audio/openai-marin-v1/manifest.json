@@ -1,0 +1,339 @@
+{
+  "schemaVersion": 1,
+  "model": "gpt-4o-mini-tts",
+  "voice": "marin",
+  "disclosure": "Voz generada por inteligencia artificial de OpenAI.",
+  "styleInstructions": "Habla siempre en español de España. Suenas como una mujer adulta hablando cara a cara con una sola persona: cercana, cálida, serena y espontánea. Usa un ritmo conversacional natural y ligeramente pausado, con pausas breves entre ideas. No uses tono de locutora, anuncio, audiolibro, podcast, centralita ni presentación corporativa. No cantes las frases, no alargues las vocales y no eleves sistemáticamente la entonación al final. Las preguntas deben sonar interesadas y humanas, nunca ensayadas. Pronuncia IA como i-a y Leroy Merlin de forma natural en español. Lee el texto literalmente, sin añadir, omitir ni reformular palabras.",
+  "profiles": {
+    "demo-operaciones": {
+      "name": "Carmen",
+      "clips": {
+        "intro": {
+          "kind": "intro",
+          "questionIndex": 0,
+          "text": "Hola, Carmen. Gracias por dedicarme este rato. Me gustaría hacerte unas preguntas para entender mejor tu experiencia. No hay respuestas correctas o incorrectas; me interesa conocer tu punto de vista. Para empezar, piensa en una semana normal: ¿qué parte de la operación de tienda te roba más tiempo o energía y por qué?",
+          "path": "./audio/openai-marin-v1/demo-operaciones/intro.mp3",
+          "contentHash": "bc7992329354ca23a1b187edd173808c7bae48783b7e8e9ee25a54e2cc1fd841"
+        },
+        "question-01": {
+          "kind": "question",
+          "questionIndex": 0,
+          "text": "Para empezar, piensa en una semana normal: ¿qué parte de la operación de tienda te roba más tiempo o energía y por qué?",
+          "path": "./audio/openai-marin-v1/demo-operaciones/question-01.mp3",
+          "contentHash": "3b2e875ae41bf3e5b964660d2f0255b8c98bf22e11939d9595d32ba2fc61e765"
+        },
+        "question-02": {
+          "kind": "question",
+          "questionIndex": 1,
+          "text": "Cuéntame un proceso reciente que pareciera sencillo sobre el papel, pero que en la práctica se complicara por coordinaciones, esperas o información incompleta.",
+          "path": "./audio/openai-marin-v1/demo-operaciones/question-02.mp3",
+          "contentHash": "f5dd3962551364ecb7779056b1d88cc9ecf7978ad2d24a43ab72616d9a141ab5"
+        },
+        "question-03": {
+          "kind": "question",
+          "questionIndex": 2,
+          "text": "¿Qué decisiones importantes estás tomando hoy con datos que llegan tarde, fragmentados o que no terminan de darte confianza?",
+          "path": "./audio/openai-marin-v1/demo-operaciones/question-03.mp3",
+          "contentHash": "f2be5b2f80a27648572e5995cec24d8959f0b5dfdbf0224923df70d2a59bb345"
+        },
+        "question-04": {
+          "kind": "question",
+          "questionIndex": 3,
+          "text": "¿Qué tareas repetitivas ves hacer a los equipos cada día que aportan poco valor al cliente, pero que nadie ha conseguido eliminar?",
+          "path": "./audio/openai-marin-v1/demo-operaciones/question-04.mp3",
+          "contentHash": "64ad4bc4e86f1c8a12fc93e686f28cc46e650c864dcd1e1a9aec6ae2ffb3c8ab"
+        },
+        "question-05": {
+          "kind": "question",
+          "questionIndex": 4,
+          "text": "Cuando una iniciativa nace en servicios centrales y llega a tienda, ¿en qué punto suele perder claridad, velocidad o sentido práctico?",
+          "path": "./audio/openai-marin-v1/demo-operaciones/question-05.mp3",
+          "contentHash": "69206a927599ad34a463697692229bf60d926206a05f95dd618d545067752d4c"
+        },
+        "question-06": {
+          "kind": "question",
+          "questionIndex": 5,
+          "text": "¿Qué diferencias entre tiendas hacen que una solución única sea difícil de aplicar sin adaptaciones?",
+          "path": "./audio/openai-marin-v1/demo-operaciones/question-06.mp3",
+          "contentHash": "c99a12d605d97430ce91cfbd677f09fc47d6bc9033eae813401833f55f15121f"
+        },
+        "question-07": {
+          "kind": "question",
+          "questionIndex": 6,
+          "text": "¿Dónde ves ahora mismo la mayor fricción para el cliente: antes de venir, durante su visita o después de comprar? Ponme un ejemplo concreto.",
+          "path": "./audio/openai-marin-v1/demo-operaciones/question-07.mp3",
+          "contentHash": "4dcc387b303059d76548e97e46f33dd8fbc1a59b98a3f7f757e02d4f650805a5"
+        },
+        "question-08": {
+          "kind": "question",
+          "questionIndex": 7,
+          "text": "¿Qué habéis probado ya con automatización o inteligencia artificial y qué aprendisteis, incluso si el resultado no fue el esperado?",
+          "path": "./audio/openai-marin-v1/demo-operaciones/question-08.mp3",
+          "contentHash": "f21ea13d2f208b07f2881563e721422ed3e0bc4790c42a9f1e8399e24cee3a8e"
+        },
+        "question-09": {
+          "kind": "question",
+          "questionIndex": 8,
+          "text": "¿Qué tendría que hacer una herramienta inteligente para que un jefe de sector dijera: esto sí me ayuda de verdad?",
+          "path": "./audio/openai-marin-v1/demo-operaciones/question-09.mp3",
+          "contentHash": "48fe7fa989742fe803208bf4a75085133f5ce4d64e0134d1083cb0441ed2df36"
+        },
+        "question-10": {
+          "kind": "question",
+          "questionIndex": 9,
+          "text": "¿Qué información no debería usar nunca esa herramienta y qué decisiones tendrían que seguir siendo humanas?",
+          "path": "./audio/openai-marin-v1/demo-operaciones/question-10.mp3",
+          "contentHash": "16038890d930ad2d98ab4e457cb108c825151359c018475942cac111eb1cbcda"
+        },
+        "question-11": {
+          "kind": "question",
+          "questionIndex": 10,
+          "text": "Si solo pudiéramos medir tres señales para saber si un piloto funciona, ¿cuáles elegirías?",
+          "path": "./audio/openai-marin-v1/demo-operaciones/question-11.mp3",
+          "contentHash": "b7e4c1d50e6249e8d100f03387719f4614c99c1a8d6be7b31c6de437522ae10f"
+        },
+        "question-12": {
+          "kind": "question",
+          "questionIndex": 11,
+          "text": "¿Qué tienda, proceso y equipo escogerías para probar algo durante seis semanas con posibilidades reales de aprender rápido?",
+          "path": "./audio/openai-marin-v1/demo-operaciones/question-12.mp3",
+          "contentHash": "90ea353bb6524f354ed10794ea15e3104aab56f109078956068f62919c140c3c"
+        },
+        "question-13": {
+          "kind": "question",
+          "questionIndex": 12,
+          "text": "Para cerrar: si dentro de un año esta iniciativa hubiera salido francamente bien, ¿qué habría cambiado en el día a día de las tiendas?",
+          "path": "./audio/openai-marin-v1/demo-operaciones/question-13.mp3",
+          "contentHash": "302be195e9b25576355fa306072af49a35676b6b1bc7e1d377b941c6d6453e9d"
+        },
+        "closing": {
+          "kind": "closing",
+          "questionIndex": null,
+          "text": "Con esto hemos terminado. Muchas gracias, Carmen, por tu tiempo y por todo lo que has compartido. Ahora prepararemos la transcripción para poder trabajar con ella.",
+          "path": "./audio/openai-marin-v1/demo-operaciones/closing.mp3",
+          "contentHash": "581159b2e8231bf6a5475c4a186d46894000df73b5ec8cff34cd6d6751248f83"
+        }
+      }
+    },
+    "demo-datos": {
+      "name": "Álex",
+      "clips": {
+        "intro": {
+          "kind": "intro",
+          "questionIndex": 0,
+          "text": "Hola, Álex. Gracias por dedicarme este rato. Me gustaría hacerte unas preguntas para entender mejor tu experiencia. No hay respuestas correctas o incorrectas; me interesa conocer tu punto de vista. Para situarnos, ¿qué pregunta de negocio importante os cuesta más responder hoy con rapidez y confianza?",
+          "path": "./audio/openai-marin-v1/demo-datos/intro.mp3",
+          "contentHash": "63bf387b4633c853b9968b466f4514c1a9e318635773481043cdcab913f828d2"
+        },
+        "question-01": {
+          "kind": "question",
+          "questionIndex": 0,
+          "text": "Para situarnos, ¿qué pregunta de negocio importante os cuesta más responder hoy con rapidez y confianza?",
+          "path": "./audio/openai-marin-v1/demo-datos/question-01.mp3",
+          "contentHash": "1d813c45dd6016c96fc6123430f4df5be49ea3ddef9a6cb5ef7492c6f70c490e"
+        },
+        "question-02": {
+          "kind": "question",
+          "questionIndex": 1,
+          "text": "Llévame desde que se genera un dato relevante hasta que acaba en un informe o en una decisión: ¿dónde aparecen las mayores pérdidas de tiempo o calidad?",
+          "path": "./audio/openai-marin-v1/demo-datos/question-02.mp3",
+          "contentHash": "48bb50b28528e907b0a76813c15388b57b9690f185028003c8cafb14692efc11"
+        },
+        "question-03": {
+          "kind": "question",
+          "questionIndex": 2,
+          "text": "¿Qué fuentes o equipos generan más incidencias de nomenclatura, duplicados o criterios distintos?",
+          "path": "./audio/openai-marin-v1/demo-datos/question-03.mp3",
+          "contentHash": "a3b0f263839fcac436402893e846f791fcfabd5d47294f2bd2088c82598807c3"
+        },
+        "question-04": {
+          "kind": "question",
+          "questionIndex": 3,
+          "text": "¿Qué parte del trabajo del equipo de datos sigue dependiendo demasiado de copiar, conciliar o explicar información manualmente?",
+          "path": "./audio/openai-marin-v1/demo-datos/question-04.mp3",
+          "contentHash": "9a243d27bfe205b1dd02c8db40f62043dc553ce95c51ebefe1a3c08a0432850f"
+        },
+        "question-05": {
+          "kind": "question",
+          "questionIndex": 4,
+          "text": "Cuando dos indicadores aparentemente iguales no coinciden, ¿cómo se resuelve hoy y cuánto cuesta llegar a una versión aceptada?",
+          "path": "./audio/openai-marin-v1/demo-datos/question-05.mp3",
+          "contentHash": "2de5f414dc04962a6fcd9f2eade106171537b353ea982b28432714bc879c92e9"
+        },
+        "question-06": {
+          "kind": "question",
+          "questionIndex": 5,
+          "text": "¿Qué demandas recurrentes recibís del negocio que podrían convertirse en un servicio de autosuficiencia bien gobernado?",
+          "path": "./audio/openai-marin-v1/demo-datos/question-06.mp3",
+          "contentHash": "1f5af8621daf3a6e241a4cf5b3649ef4cca54d2e82c9e57e24eef249a48660fc"
+        },
+        "question-07": {
+          "kind": "question",
+          "questionIndex": 6,
+          "text": "¿En qué casos una interfaz conversacional tendría sentido y en cuáles añadiría más ruido que valor?",
+          "path": "./audio/openai-marin-v1/demo-datos/question-07.mp3",
+          "contentHash": "cd479fd5d5d041e1e6bf0c9d17d18a0f706afe5650444ec94d058a7575d41c82"
+        },
+        "question-08": {
+          "kind": "question",
+          "questionIndex": 7,
+          "text": "¿Qué activos de datos están realmente preparados para alimentar un caso de IA y cuáles necesitarían una limpieza o rediseño previo?",
+          "path": "./audio/openai-marin-v1/demo-datos/question-08.mp3",
+          "contentHash": "330d20f9869f5e2e888020747ca6eb373a8db85eb91a864032bd0e38b64b4752"
+        },
+        "question-09": {
+          "kind": "question",
+          "questionIndex": 8,
+          "text": "¿Qué riesgos de privacidad, permisos o trazabilidad te preocupan especialmente al pensar en asistentes que consulten información interna?",
+          "path": "./audio/openai-marin-v1/demo-datos/question-09.mp3",
+          "contentHash": "2396eb73b3c3965803173b368cfdecd358eb99cfaa5a4300b58785d2015419bb"
+        },
+        "question-10": {
+          "kind": "question",
+          "questionIndex": 9,
+          "text": "¿Qué tendría que registrar el sistema para que cada respuesta pudiera auditarse y el usuario supiera de dónde sale?",
+          "path": "./audio/openai-marin-v1/demo-datos/question-10.mp3",
+          "contentHash": "5866d79303145bd2503e11eeb97b8dcc4ee9439ed57b123041b0da68dba7b5da"
+        },
+        "question-11": {
+          "kind": "question",
+          "questionIndex": 10,
+          "text": "¿Qué caso de uso permitiría demostrar valor en pocas semanas sin crear una deuda técnica difícil de sostener?",
+          "path": "./audio/openai-marin-v1/demo-datos/question-11.mp3",
+          "contentHash": "658928689a9df1ee8df69357fdb059dab83cc9c9fa689904e75cf2c434161a9c"
+        },
+        "question-12": {
+          "kind": "question",
+          "questionIndex": 11,
+          "text": "¿Qué capacidades faltan hoy —personas, plataforma, gobierno o patrocinio— para escalar después de un piloto?",
+          "path": "./audio/openai-marin-v1/demo-datos/question-12.mp3",
+          "contentHash": "ccda7833cab23870fd2f74317877a3f3811afb95cee90afb38e9b5b849771e11"
+        },
+        "question-13": {
+          "kind": "question",
+          "questionIndex": 12,
+          "text": "Para terminar: ¿qué resultado haría que el equipo de datos considerase esta iniciativa una ayuda y no otra capa de demanda?",
+          "path": "./audio/openai-marin-v1/demo-datos/question-13.mp3",
+          "contentHash": "d77e9c3e900ea3400b6da40908a0d8c7ae05d529268b97bd4d6c80415fda7a1b"
+        },
+        "closing": {
+          "kind": "closing",
+          "questionIndex": null,
+          "text": "Con esto hemos terminado. Muchas gracias, Álex, por tu tiempo y por todo lo que has compartido. Ahora prepararemos la transcripción para poder trabajar con ella.",
+          "path": "./audio/openai-marin-v1/demo-datos/closing.mp3",
+          "contentHash": "d75ce93340dcd53286c04db5d5757f4512feaa4256cdb3ee9059cc9e941fb4bd"
+        }
+      }
+    },
+    "demo-personas": {
+      "name": "Lucía",
+      "clips": {
+        "intro": {
+          "kind": "intro",
+          "questionIndex": 0,
+          "text": "Hola, Lucía. Gracias por dedicarme este rato. Me gustaría hacerte unas preguntas para entender mejor tu experiencia. No hay respuestas correctas o incorrectas; me interesa conocer tu punto de vista. Para empezar por lo concreto, ¿qué cambio en la forma de trabajar está generando hoy más preguntas o inquietud entre los equipos?",
+          "path": "./audio/openai-marin-v1/demo-personas/intro.mp3",
+          "contentHash": "253eb6c90aa8c00e26153a604e5b71469cfa71d7040e597137b90fe862d6a5f3"
+        },
+        "question-01": {
+          "kind": "question",
+          "questionIndex": 0,
+          "text": "Para empezar por lo concreto, ¿qué cambio en la forma de trabajar está generando hoy más preguntas o inquietud entre los equipos?",
+          "path": "./audio/openai-marin-v1/demo-personas/question-01.mp3",
+          "contentHash": "7c0c02bc7313da9d59ac312160613c232a865f7f6747ef6b9c63d50728196264"
+        },
+        "question-02": {
+          "kind": "question",
+          "questionIndex": 1,
+          "text": "¿En qué momentos del recorrido del empleado —incorporación, aprendizaje, movilidad o gestión— se pierden más tiempo y oportunidades?",
+          "path": "./audio/openai-marin-v1/demo-personas/question-02.mp3",
+          "contentHash": "cbfd1d31e49c91ea3dadad74ccd8e66628bbf7f7e410bdfefaf77e2241d83cec"
+        },
+        "question-03": {
+          "kind": "question",
+          "questionIndex": 2,
+          "text": "Cuéntame una tarea de un mando intermedio que haya crecido mucho en complejidad durante los últimos años.",
+          "path": "./audio/openai-marin-v1/demo-personas/question-03.mp3",
+          "contentHash": "8c8caf0ad199b9634b999fc1a610c575aee06453065ee1a480daba908ec80f9d"
+        },
+        "question-04": {
+          "kind": "question",
+          "questionIndex": 3,
+          "text": "¿Qué trabajos invisibles hacen las personas para compensar procesos o herramientas que no funcionan del todo bien?",
+          "path": "./audio/openai-marin-v1/demo-personas/question-04.mp3",
+          "contentHash": "f4831ee23884e9c718bd23d4dd939294bed83965ed5882c8699b15651cec1f8f"
+        },
+        "question-05": {
+          "kind": "question",
+          "questionIndex": 4,
+          "text": "¿Dónde ves mayor distancia entre las capacidades que la organización necesita y las que hoy puede desplegar con facilidad?",
+          "path": "./audio/openai-marin-v1/demo-personas/question-05.mp3",
+          "contentHash": "6a059325739639518e052b6e0e4a7e8cc1f11f9a449e3e6d1aa96f564f358043"
+        },
+        "question-06": {
+          "kind": "question",
+          "questionIndex": 5,
+          "text": "¿Qué colectivos podrían beneficiarse antes de un asistente inteligente y cuáles necesitarían más acompañamiento?",
+          "path": "./audio/openai-marin-v1/demo-personas/question-06.mp3",
+          "contentHash": "288fa52f1cdfcee0f2af0c83d6887452c36e84b757103d02986ed3e5d8775fba"
+        },
+        "question-07": {
+          "kind": "question",
+          "questionIndex": 6,
+          "text": "¿Qué señales de rechazo o fatiga tecnológica deberíamos escuchar antes de lanzar un piloto?",
+          "path": "./audio/openai-marin-v1/demo-personas/question-07.mp3",
+          "contentHash": "4673a2163528b4bbd872af2f215249a4a135edf2cce437da024bd9d2554b0ad0"
+        },
+        "question-08": {
+          "kind": "question",
+          "questionIndex": 7,
+          "text": "¿Cómo tendría que explicarse el uso de datos y de IA para que las personas sintieran claridad y control, no vigilancia?",
+          "path": "./audio/openai-marin-v1/demo-personas/question-08.mp3",
+          "contentHash": "539db3ea1fed0883d2c3f7a2f72e8668f56ea4fe17870f8ca2ef144ed7666e32"
+        },
+        "question-09": {
+          "kind": "question",
+          "questionIndex": 8,
+          "text": "¿Qué decisiones sobre personas deberían quedar expresamente fuera de la automatización?",
+          "path": "./audio/openai-marin-v1/demo-personas/question-09.mp3",
+          "contentHash": "7aca343ae030d7fb703ba7b9707ddf014d0eee74ce7c73bea8a0930711cfb91b"
+        },
+        "question-10": {
+          "kind": "question",
+          "questionIndex": 9,
+          "text": "¿Qué nueva capacidad deberían desarrollar los responsables de equipo para dirigir una combinación de personas y asistentes de IA?",
+          "path": "./audio/openai-marin-v1/demo-personas/question-10.mp3",
+          "contentHash": "8ad7c67a0ab69ba34e81795b7aef2113ea22ffcbb1744327655b06553e7257c4"
+        },
+        "question-11": {
+          "kind": "question",
+          "questionIndex": 10,
+          "text": "Si diseñáramos un piloto con empleados voluntarios, ¿qué apoyo, tiempo y reconocimiento necesitarían para participar de verdad?",
+          "path": "./audio/openai-marin-v1/demo-personas/question-11.mp3",
+          "contentHash": "dd84cf5e3f9458e68242e5539ad9f9008311cf24e080f6717ddb4510ea84b50f"
+        },
+        "question-12": {
+          "kind": "question",
+          "questionIndex": 11,
+          "text": "¿Qué indicadores combinarías para medir productividad sin perder de vista aprendizaje, bienestar y calidad del trabajo?",
+          "path": "./audio/openai-marin-v1/demo-personas/question-12.mp3",
+          "contentHash": "4cdc818009f01bcef60f255de339896c46280b8f3b9237234855f312f26ab9d3"
+        },
+        "question-13": {
+          "kind": "question",
+          "questionIndex": 12,
+          "text": "Para cerrar: dentro de un año, ¿qué tendría que contar un empleado para que tú dijeras que esta transformación ha merecido la pena?",
+          "path": "./audio/openai-marin-v1/demo-personas/question-13.mp3",
+          "contentHash": "04269c2023ae0a1a8dab6e118fa63bd76671785e4a5dd378f98306dd69408e35"
+        },
+        "closing": {
+          "kind": "closing",
+          "questionIndex": null,
+          "text": "Con esto hemos terminado. Muchas gracias, Lucía, por tu tiempo y por todo lo que has compartido. Ahora prepararemos la transcripción para poder trabajar con ella.",
+          "path": "./audio/openai-marin-v1/demo-personas/closing.mp3",
+          "contentHash": "1a21dce2ab1718f1cfa20e761e7a8bca2b79e0249997ac561d4185cff3f4cf25"
+        }
+      }
+    }
+  }
+}
