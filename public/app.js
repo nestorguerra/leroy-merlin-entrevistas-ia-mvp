@@ -3,6 +3,9 @@ import { RealtimeInterview } from "./realtime.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+const IS_STATIC_DEMO =
+  window.location.hostname.endsWith(".github.io") ||
+  new URLSearchParams(window.location.search).has("pages-demo");
 
 const elements = {
   appShell: $("#appShell"),
@@ -19,6 +22,7 @@ const elements = {
   durationLabel: $("#durationLabel"),
   sampleGreeting: $("#sampleGreeting"),
   consentCheckbox: $("#consentCheckbox"),
+  storageTrustLabel: $("#storageTrustLabel"),
   startRealtimeButton: $("#startRealtimeButton"),
   startPreviewButton: $("#startPreviewButton"),
   openSettingsButton: $("#openSettingsButton"),
@@ -35,6 +39,7 @@ const elements = {
   modelSelect: $("#modelSelect"),
   voiceSelect: $("#voiceSelect"),
   profilesFileInput: $("#profilesFileInput"),
+  templateDownloadLink: $("#templateDownloadLink"),
   chooseProfilesFileButton: $("#chooseProfilesFileButton"),
   uploadFeedback: $("#uploadFeedback"),
   profilesCount: $("#profilesCount"),
@@ -131,9 +136,11 @@ const state = {
   muted: false,
   saveQueue: Promise.resolve(),
   lastExports: null,
+  staticExportUrls: [],
   remoteAnalyser: null,
   inputAnalyser: null,
   previewRecognition: null,
+  previewRecognitionDisabled: false,
   previewSpeaking: false,
   previewStopped: false,
   confirmAction: null,
@@ -173,6 +180,9 @@ function safeExportPath(value) {
   if (typeof value !== "string") return "#";
   try {
     const url = new URL(value, window.location.origin);
+    if (IS_STATIC_DEMO && url.protocol === "blob:" && url.origin === window.location.origin) {
+      return value;
+    }
     const validPath = /^\/api\/interviews\/[a-f0-9-]{36}\/export$/i.test(url.pathname);
     const validFormat = ["json", "md", "txt"].includes(url.searchParams.get("format"));
     if (url.origin !== window.location.origin || !validPath || !validFormat) return "#";
@@ -279,6 +289,13 @@ function setAssistantResponding(responding) {
 }
 
 function updateKeyStatus() {
+  if (IS_STATIC_DEMO) {
+    elements.keyStatusCard.classList.add("is-ready");
+    elements.keyStatusTitle.textContent = "Demo segura en GitHub Pages";
+    elements.keyStatusDescription.textContent = "Sin claves ni conexión a OpenAI.";
+    setConnectionStatus("ready", "Demo en Pages");
+    return;
+  }
   const configured = Boolean(state.config.keyConfigured);
   elements.keyStatusCard.classList.toggle("is-ready", configured);
   elements.keyStatusTitle.textContent = configured
@@ -309,7 +326,31 @@ async function fetchJson(url, options = {}) {
 }
 
 async function loadConfig() {
-  state.config = { ...state.config, ...(await fetchJson("/api/config")) };
+  if (IS_STATIC_DEMO) {
+    state.config = {
+      ...state.config,
+      keyConfigured: false,
+      localSettingsEnabled: false,
+    };
+    elements.startRealtimeButton.hidden = true;
+    elements.startPreviewButton.textContent = "Abrir demo";
+    elements.startPreviewButton.classList.remove("button--secondary");
+    elements.startPreviewButton.classList.add("button--primary");
+    elements.apiKeyForm.hidden = true;
+    elements.storageTrustLabel.textContent = "Descarga local al terminar";
+    elements.templateDownloadLink.href = "./data/interviewees.template.json";
+    $('[data-settings-tab="voice"]').textContent = "Demo";
+    $('[data-settings-panel="voice"] .settings-two-columns').hidden = true;
+    $('[data-settings-panel="voice"] .info-note').hidden = true;
+    const privacyIntro = $("p", elements.privacyDialog);
+    const privacyItems = $$("li", elements.privacyDialog);
+    privacyIntro.textContent =
+      "Esta demo pública no conecta con OpenAI ni envía tu voz a este proyecto. Si respondes hablando, el reconocimiento puede depender del servicio de voz de tu navegador.";
+    privacyItems[1].textContent = "La transcripción se mantiene en esta pestaña hasta que la descargues.";
+    privacyItems[4].textContent = "La demo no conserva archivos en GitHub ni en un servidor.";
+  } else {
+    state.config = { ...state.config, ...(await fetchJson("/api/config")) };
+  }
   elements.modelSelect.value = localStorage.getItem("interview-model") || state.config.model;
   elements.voiceSelect.value = localStorage.getItem("interview-voice") || state.config.voice;
   updateKeyStatus();
@@ -317,8 +358,8 @@ async function loadConfig() {
 
 async function loadInterviewees({ preserveSelection = true } = {}) {
   const previousSelection = preserveSelection ? state.selectedIntervieweeId : null;
-  const payload = await fetchJson("/api/interviewees");
-  state.interviewees = payload.interviewees || [];
+  const payload = await fetchJson(IS_STATIC_DEMO ? "./data/interviewees.json" : "/api/interviewees");
+  state.interviewees = Array.isArray(payload) ? payload : payload.interviewees || [];
   state.selectedIntervieweeId =
     state.interviewees.find((person) => person.id === previousSelection)?.id ||
     state.interviewees[0]?.id ||
@@ -402,7 +443,7 @@ function updateSelectedPerson() {
 
 function updateStartButtons() {
   const enabled = Boolean(getSelectedInterviewee() && elements.consentCheckbox.checked);
-  elements.startRealtimeButton.disabled = !enabled;
+  elements.startRealtimeButton.disabled = IS_STATIC_DEMO || !enabled;
   elements.startPreviewButton.disabled = !enabled;
 }
 
@@ -638,21 +679,91 @@ function setSaveState(status) {
     status === "saving" ? "Guardando" : status === "error" ? "Sin guardar" : "Al día";
 }
 
+function interviewToMarkdown(record) {
+  const title = record.participant.fullName || record.participant.name || "Entrevista";
+  const lines = [
+    `# Entrevista · ${title}`,
+    "",
+    `- Cargo: ${record.participant.role || "No indicado"}`,
+    `- Área: ${record.participant.area || "No indicada"}`,
+    `- Inicio: ${record.startedAt}`,
+    `- Fin: ${record.endedAt || "En curso"}`,
+    `- Duración: ${Math.round(record.durationSeconds / 60)} min`,
+    `- Estado: ${record.status}`,
+    "",
+  ];
+  const participantEntries = record.transcript.filter((entry) => entry.speaker === "participant");
+  record.questions.forEach((question, questionIndex) => {
+    lines.push(`## ${questionIndex + 1}. ${question}`, "");
+    const answers = participantEntries
+      .filter((entry) => entry.questionIndex === questionIndex)
+      .map((entry) =>
+        entry.partial ? `${entry.text}\n\n_Transcripción parcial._` : entry.text,
+      );
+    lines.push(answers.length ? answers.join("\n\n") : "_Sin respuesta registrada._", "");
+  });
+  lines.push("---", "", "## Transcripción completa", "");
+  for (const entry of record.transcript) {
+    const speaker = entry.speaker === "interviewer" ? "Entrevistadora" : "Participante";
+    const partialLabel = entry.partial ? " (transcripción parcial)" : "";
+    lines.push(`**${speaker}${partialLabel}:** ${entry.text}`, "");
+  }
+  return `${lines.join("\n").trim()}\n`;
+}
+
+function interviewToText(record) {
+  return interviewToMarkdown(record)
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^[-] /gm, "")
+    .replace(/\*\*/g, "")
+    .replace(/_([^_]+)_/g, "$1");
+}
+
+function createStaticSaveResult(payload) {
+  for (const url of state.staticExportUrls) URL.revokeObjectURL(url);
+  const record = {
+    version: 1,
+    ...payload,
+    sessionId: state.sessionId,
+    updatedAt: new Date().toISOString(),
+  };
+  const contents = {
+    json: [JSON.stringify(record, null, 2), "application/json;charset=utf-8"],
+    markdown: [interviewToMarkdown(record), "text/markdown;charset=utf-8"],
+    text: [interviewToText(record), "text/plain;charset=utf-8"],
+  };
+  const exports = Object.fromEntries(
+    Object.entries(contents).map(([format, [content, type]]) => [
+      format,
+      URL.createObjectURL(new Blob([content], { type })),
+    ]),
+  );
+  state.staticExportUrls = Object.values(exports);
+  return { ok: true, sessionId: state.sessionId, exports };
+}
+
 function saveInterview(status, { quiet = true } = {}) {
+  if (IS_STATIC_DEMO && !state.sessionId) state.sessionId = crypto.randomUUID();
   const payload = createInterviewPayload(status);
   state.saveQueue = state.saveQueue
     .catch(() => {})
     .then(async () => {
       setSaveState("saving");
-      const result = await fetchJson("/api/interviews", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const result = IS_STATIC_DEMO
+        ? createStaticSaveResult(payload)
+        : await fetchJson("/api/interviews", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
       state.sessionId = result.sessionId;
       state.lastExports = result.exports;
       setSaveState("saved");
-      if (!quiet) showToast("Transcripción guardada.");
+      if (!quiet) {
+        showToast(
+          IS_STATIC_DEMO ? "Transcripción lista para descargar." : "Transcripción guardada.",
+        );
+      }
       return result;
     })
     .catch((error) => {
@@ -691,6 +802,7 @@ function resetInterviewState(mode) {
   state.inputAnalyser = null;
   state.previewStopped = false;
   state.previewSpeaking = false;
+  state.previewRecognitionDisabled = false;
   setAssistantResponding(false);
   state.realtimeEventTypes = [];
   elements.muteButton.classList.remove("is-muted");
@@ -701,6 +813,10 @@ function resetInterviewState(mode) {
 async function startInterview(mode) {
   const person = getSelectedInterviewee();
   if (!person || !elements.consentCheckbox.checked) return;
+  if (IS_STATIC_DEMO && mode === "realtime") {
+    showToast("La voz Realtime completa está disponible en la copia local.", "error");
+    return;
+  }
   if (mode === "realtime" && !state.config.keyConfigured) {
     openSettings("voice");
     showToast("Añade la clave de OpenAI para activar la entrevista por voz.", "error");
@@ -719,7 +835,10 @@ async function startInterview(mode) {
   try {
     await saveInterview("in_progress");
     showScreen("interview");
-    setConnectionStatus("live", mode === "realtime" ? "Entrevista en directo" : "Vista previa");
+    setConnectionStatus(
+      "live",
+      mode === "realtime" ? "Entrevista en directo" : IS_STATIC_DEMO ? "Demo en curso" : "Vista previa",
+    );
 
     if (mode === "realtime") {
       await startRealtimeInterview(person);
@@ -1059,7 +1178,8 @@ function initializePreviewRecognition() {
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!Recognition) {
     state.previewRecognition = null;
-    showToast("Este navegador no transcribe en local; responde escribiendo en el cuadro.");
+    state.previewRecognitionDisabled = true;
+    showToast("Este navegador no ofrece transcripción por voz; responde escribiendo en el cuadro.");
     return;
   }
   const recognition = new Recognition();
@@ -1092,6 +1212,7 @@ function initializePreviewRecognition() {
   });
   recognition.addEventListener("error", (event) => {
     if (!["no-speech", "aborted"].includes(event.error)) {
+      state.previewRecognitionDisabled = true;
       showToast("La transcripción del navegador se ha detenido. Puedes responder escribiendo.", "error");
     }
   });
@@ -1102,6 +1223,7 @@ function initializePreviewRecognition() {
       state.awaitingAnswer &&
       !state.previewSpeaking &&
       !state.previewStopped &&
+      !state.previewRecognitionDisabled &&
       !state.muted
     ) {
       window.setTimeout(startPreviewRecognition, 450);
@@ -1115,6 +1237,7 @@ function startPreviewRecognition() {
     !state.previewRecognition ||
     state.previewSpeaking ||
     state.previewStopped ||
+    state.previewRecognitionDisabled ||
     state.muted ||
     state.finalizing
   ) return;
@@ -1280,7 +1403,7 @@ async function finalizeInterview(status = "completed") {
   setInterviewVisualState("completed", "Entrevista guardada");
   updateCompletionScreen();
   await loadHistory().catch(() => {});
-  setConnectionStatus(state.config.keyConfigured ? "ready" : "warning", state.config.keyConfigured ? "Voz preparada" : "Falta configurar voz");
+  updateKeyStatus();
   showScreen("complete");
   if (untranscribedInput) {
     showToast(
@@ -1306,6 +1429,10 @@ function updateCompletionScreen() {
   elements.downloadMarkdownButton.href = safeExportPath(exports.markdown);
   elements.downloadTextButton.href = safeExportPath(exports.text);
   elements.downloadJsonButton.href = safeExportPath(exports.json);
+  const suffix = state.sessionId || "demo";
+  elements.downloadMarkdownButton.download = `entrevista-${suffix}.md`;
+  elements.downloadTextButton.download = `entrevista-${suffix}.txt`;
+  elements.downloadJsonButton.download = `entrevista-${suffix}.json`;
 }
 
 function requestFinish({ leaving = false } = {}) {
@@ -1329,6 +1456,10 @@ async function confirmFinish() {
 }
 
 async function saveApiKeyFromSettings() {
+  if (IS_STATIC_DEMO) {
+    showToast("Pages no recibe ni guarda claves. Usa la copia local para Realtime.", "error");
+    return;
+  }
   const apiKey = elements.apiKeyInput.value.trim();
   if (!apiKey) {
     showToast("Pega primero la clave de OpenAI.", "error");
@@ -1371,24 +1502,70 @@ function selectSettingsTab(tab) {
   });
 }
 
+function normalizeStaticInterviewees(value) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 100) {
+    throw new Error("El archivo debe contener entre 1 y 100 personas.");
+  }
+  const ids = new Set();
+  return value.map((raw, index) => {
+    const clean = (input, limit) => String(input ?? "").replace(/\u0000/g, "").trim().slice(0, limit);
+    const name = clean(raw?.name, 80);
+    const fullName = clean(raw?.fullName, 120) || name;
+    const role = clean(raw?.role, 160);
+    const area = clean(raw?.area, 80);
+    const context = clean(raw?.context, 1200);
+    const id = clean(raw?.id || fullName || `persona-${index + 1}`, 100)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const questions = Array.isArray(raw?.questions)
+      ? raw.questions.map((question) => clean(question, 800)).filter(Boolean)
+      : [];
+    if (!name || !role || !id) throw new Error(`Faltan nombre, cargo o id en la persona ${index + 1}.`);
+    if (ids.has(id)) throw new Error(`El id “${id}” está repetido.`);
+    if (questions.length < 12 || questions.length > 15) {
+      throw new Error(`${fullName} debe tener entre 12 y 15 preguntas.`);
+    }
+    ids.add(id);
+    return {
+      id,
+      name,
+      fullName,
+      role,
+      area,
+      context,
+      questions,
+      durationMinutes: Math.max(15, Math.min(30, Number(raw?.durationMinutes) || 20)),
+      isDemo: Boolean(raw?.isDemo),
+    };
+  });
+}
+
 async function importProfilesFile(file) {
   if (!file) return;
   elements.uploadFeedback.textContent = `Leyendo ${file.name}…`;
   try {
     const parsed = JSON.parse(await file.text());
     const interviewees = Array.isArray(parsed) ? parsed : parsed.interviewees;
-    const result = await fetchJson("/api/interviewees", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ interviewees }),
-    });
+    const result = IS_STATIC_DEMO
+      ? (() => {
+          const normalized = normalizeStaticInterviewees(interviewees);
+          return { count: normalized.length, interviewees: normalized };
+        })()
+      : await fetchJson("/api/interviewees", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ interviewees }),
+        });
     state.interviewees = result.interviewees;
     state.selectedIntervieweeId = state.interviewees[0]?.id || null;
     renderPeople();
     renderSettingsPeople();
     updateSelectedPerson();
-    elements.uploadFeedback.textContent = `${result.count} perfiles cargados correctamente.`;
-    showToast("Personas y preguntas actualizadas.");
+    elements.uploadFeedback.textContent = `${result.count} perfiles cargados${IS_STATIC_DEMO ? " en esta pestaña" : " correctamente"}.`;
+    showToast(IS_STATIC_DEMO ? "Perfiles cargados solo en esta pestaña." : "Personas y preguntas actualizadas.");
   } catch (error) {
     elements.uploadFeedback.textContent = error.message;
     showToast(error.message, "error", 7500);
@@ -1398,6 +1575,11 @@ async function importProfilesFile(file) {
 }
 
 async function loadHistory() {
+  if (IS_STATIC_DEMO) {
+    elements.historyList.innerHTML =
+      '<div class="history-empty">La demo pública no conserva entrevistas. Descarga los archivos al terminar.</div>';
+    return;
+  }
   const payload = await fetchJson("/api/interviews");
   const interviews = payload.interviews || [];
   if (!interviews.length) {
@@ -1544,6 +1726,10 @@ function bindEvents() {
   }
   window.addEventListener("beforeunload", (event) => {
     if (!state.interviewActive) return;
+    if (IS_STATIC_DEMO) {
+      event.preventDefault();
+      return;
+    }
     try {
       materializePendingInputTranscripts();
       navigator.sendBeacon(
