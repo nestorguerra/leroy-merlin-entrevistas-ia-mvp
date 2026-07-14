@@ -2,6 +2,12 @@
 
 MVP local para realizar entrevistas por voz con `gpt-realtime-2.1`, una guía distinta para cada persona y guardado automático de la transcripción.
 
+## Demo en GitHub Pages
+
+[Abrir la demo visual](https://nestorguerra.github.io/leroy-merlin-entrevistas-ia-mvp/)
+
+La demo pública permite recorrer las preguntas, responder hablando o escribiendo y descargar la transcripción en Markdown, TXT y JSON. Funciona solo en el navegador: no incluye ninguna clave y no conecta con OpenAI. La entrevista Realtime completa sigue disponible en la copia local descrita abajo.
+
 ## Abrir el MVP
 
 La forma fácil es hacer doble clic en **`Abrir MVP.command`**. Se abrirá el navegador en:

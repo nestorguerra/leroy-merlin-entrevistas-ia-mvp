@@ -10,15 +10,15 @@
     <meta name="theme-color" content="#ffffff" />
     <title>Escucha · Entrevistas IA</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="app-shell" id="appShell">
       <header class="app-header" id="appHeader">
-        <a class="brand" href="/" aria-label="Volver al inicio">
+        <a class="brand" href="./" aria-label="Volver al inicio">
           <img
             class="brand__logo"
-            src="/leroy-merlin-logo.jpg"
+            src="./leroy-merlin-logo.jpg"
             alt="Leroy Merlin"
             width="104"
             height="63"
@@ -88,7 +88,7 @@
               <div class="trust-row" aria-label="Información de la entrevista">
                 <span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></svg>
-                  Texto guardado en este Mac
+                  <span id="storageTrustLabel">Texto guardado en este Mac</span>
                 </span>
                 <span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
@@ -374,7 +374,7 @@
               <button class="button button--primary button--compact" id="chooseProfilesFileButton" type="button">
                 Elegir archivo JSON
               </button>
-              <a class="secondary-link" href="/api/interviewees/template" download>Descargar plantilla</a>
+              <a class="secondary-link" id="templateDownloadLink" href="/api/interviewees/template" download>Descargar plantilla</a>
               <span class="upload-feedback" id="uploadFeedback"></span>
             </div>
 
@@ -468,6 +468,6 @@
     </div>
     <audio id="remoteAudio" autoplay></audio>
 
-    <script type="module" src="/app.js"></script>
+    <script type="module" src="./app.js"></script>
   </body>
 </html>

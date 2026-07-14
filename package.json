@@ -6,6 +6,7 @@
   "description": "MVP local de entrevistas hiperpersonalizadas con OpenAI Realtime.",
   "scripts": {
     "start": "node server.mjs",
+    "build:pages": "node scripts/build-pages.mjs",
     "check": "node --check server.mjs && node --check public/app.js && node --check public/realtime.js && node --check public/orb.js",
     "test": "node --test test/server.test.mjs"
   },
