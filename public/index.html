@@ -172,7 +172,7 @@
             </aside>
 
             <div class="interview-stage">
-              <div class="live-state" id="liveState">
+              <div class="live-state" id="liveState" role="status" aria-live="polite" aria-atomic="true">
                 <span class="live-state__dot"></span>
                 <span id="liveStateLabel">Conectando…</span>
               </div>
@@ -187,21 +187,36 @@
                 <h2 id="currentQuestionText">Preparando la primera pregunta…</h2>
               </div>
 
-              <div class="live-transcript" id="liveTranscript" aria-live="polite">
-                <span>Transcripción en directo</span>
+              <div class="live-transcript" id="liveTranscript">
+                <span>Tu respuesta, en curso</span>
                 <p id="liveTranscriptText">Cuando hables, tus palabras aparecerán aquí.</p>
               </div>
 
               <div class="manual-answer" id="manualAnswerPanel" hidden>
-                <label for="manualAnswerInput">También puedes responder escribiendo</label>
+                <label for="manualAnswerInput">Si lo prefieres, añade texto a tu respuesta</label>
                 <div>
                   <textarea
                     id="manualAnswerInput"
                     rows="2"
                     placeholder="Escribe aquí tu respuesta…"
                   ></textarea>
-                  <button id="submitManualAnswerButton" type="button">Enviar</button>
+                  <button id="submitManualAnswerButton" type="button">Añadir</button>
                 </div>
+              </div>
+
+              <div class="answer-actions" id="answerActions">
+                <button
+                  class="button button--primary answer-complete-button"
+                  id="completeAnswerButton"
+                  type="button"
+                  aria-describedby="answerCompleteHint controlHint"
+                  disabled
+                >
+                  He terminado de responder
+                </button>
+                <span class="answer-actions__hint" id="answerCompleteHint">
+                  Enviar esta respuesta y pasar a la siguiente pregunta
+                </span>
               </div>
 
               <div class="interview-controls">
@@ -216,21 +231,21 @@
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5z" /></svg>
                 </button>
               </div>
-              <p class="control-hint" id="controlHint">Puedes hablar con naturalidad y hacer pausas.</p>
+              <p class="control-hint" id="controlHint">Puedes parar a pensar todo el tiempo que necesites. Solo avanzaremos cuando pulses «He terminado de responder».</p>
             </div>
 
-            <aside class="notes-panel" id="notesPanel" aria-label="Respuestas guardadas">
+            <aside class="notes-panel" id="notesPanel" aria-label="Respuestas terminadas">
               <div class="notes-panel__header">
                 <div>
                   <span>En directo</span>
-                  <strong>Respuestas guardadas</strong>
+                  <strong>Respuestas terminadas</strong>
                 </div>
                 <span class="save-state" id="saveState"><i></i>Al día</span>
               </div>
               <div class="answer-list" id="answerList">
                 <div class="empty-answers">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>
-                  <p>Las respuestas irán apareciendo aquí sin interrumpir la conversación.</p>
+                  <p>Las respuestas aparecerán aquí cuando indiques que has terminado.</p>
                 </div>
               </div>
               <button class="edit-transcript-button" id="openTranscriptButton" type="button">

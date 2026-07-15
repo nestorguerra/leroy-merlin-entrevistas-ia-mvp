@@ -7,6 +7,10 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const IS_STATIC_DEMO =
   window.location.hostname.endsWith(".github.io") ||
   new URLSearchParams(window.location.search).has("pages-demo");
+const ANSWER_GUIDANCE =
+  "Puedes parar a pensar todo el tiempo que necesites. Solo avanzaremos cuando pulses «He terminado de responder».";
+const EMPTY_ANSWER_COPY =
+  "Cuando quieras, empieza a hablar. Puedes hacer todas las pausas que necesites.";
 
 const elements = {
   appShell: $("#appShell"),
@@ -71,6 +75,9 @@ const elements = {
   manualAnswerPanel: $("#manualAnswerPanel"),
   manualAnswerInput: $("#manualAnswerInput"),
   submitManualAnswerButton: $("#submitManualAnswerButton"),
+  answerActions: $("#answerActions"),
+  completeAnswerButton: $("#completeAnswerButton"),
+  answerCompleteHint: $("#answerCompleteHint"),
   muteButton: $("#muteButton"),
   repeatQuestionButton: $("#repeatQuestionButton"),
   finishInterviewButton: $("#finishInterviewButton"),
@@ -120,6 +127,8 @@ const state = {
   answeredQuestionIndexes: new Set(),
   inputQuestionByItemId: new Map(),
   inputTranscriptDeltas: new Map(),
+  inputOrderByItemId: new Map(),
+  inputFallbackQuestionIndex: 0,
   pendingInputItemIds: new Set(),
   assistantTranscriptDeltas: new Map(),
   assistantQuestionByResponseId: new Map(),
@@ -135,6 +144,8 @@ const state = {
   realtime: null,
   interviewActive: false,
   awaitingAnswer: false,
+  answerSubmitting: false,
+  nextInputSequence: 0,
   closingRequested: false,
   muted: false,
   saveQueue: Promise.resolve(),
@@ -143,6 +154,10 @@ const state = {
   remoteAnalyser: null,
   inputAnalyser: null,
   previewRecognition: null,
+  previewRecognitionRunning: false,
+  previewRecognitionEndWaiters: [],
+  previewInterimText: "",
+  previewCurrentItemId: null,
   previewRecognitionDisabled: false,
   previewSpeaking: false,
   previewStopped: false,
@@ -312,9 +327,151 @@ function setInterviewVisualState(visualState, label) {
   }
 }
 
+function ensureInputSequence(itemId) {
+  if (!itemId) return state.nextInputSequence++;
+  if (!state.inputOrderByItemId.has(itemId)) {
+    state.inputOrderByItemId.set(itemId, state.nextInputSequence++);
+  }
+  return state.inputOrderByItemId.get(itemId);
+}
+
+function sortAnswerFragments(entries) {
+  return [...entries].sort((left, right) => {
+    const leftOrder = Number.isInteger(left.segmentOrder) ? left.segmentOrder : Number.MAX_SAFE_INTEGER;
+    const rightOrder = Number.isInteger(right.segmentOrder) ? right.segmentOrder : Number.MAX_SAFE_INTEGER;
+    if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+    return String(left.createdAt || "").localeCompare(String(right.createdAt || ""));
+  });
+}
+
+function sortTranscriptForExport(entries) {
+  const speakerOrder = { interviewer: 0, participant: 1, system: 2 };
+  return entries
+    .map((entry, originalIndex) => ({ entry, originalIndex }))
+    .sort((left, right) => {
+      const leftQuestion = Number.isInteger(left.entry.questionIndex)
+        ? left.entry.questionIndex
+        : Number.MAX_SAFE_INTEGER;
+      const rightQuestion = Number.isInteger(right.entry.questionIndex)
+        ? right.entry.questionIndex
+        : Number.MAX_SAFE_INTEGER;
+      if (leftQuestion !== rightQuestion) return leftQuestion - rightQuestion;
+      const leftSpeaker = speakerOrder[left.entry.speaker] ?? 3;
+      const rightSpeaker = speakerOrder[right.entry.speaker] ?? 3;
+      if (leftSpeaker !== rightSpeaker) return leftSpeaker - rightSpeaker;
+      if (left.entry.speaker === "participant") {
+        const leftOrder = Number.isInteger(left.entry.segmentOrder)
+          ? left.entry.segmentOrder
+          : Number.MAX_SAFE_INTEGER;
+        const rightOrder = Number.isInteger(right.entry.segmentOrder)
+          ? right.entry.segmentOrder
+          : Number.MAX_SAFE_INTEGER;
+        if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+      }
+      return left.originalIndex - right.originalIndex;
+    })
+    .map(({ entry }) => entry);
+}
+
+function getDraftEntries(questionIndex = state.currentQuestionIndex) {
+  return sortAnswerFragments(
+    state.transcript.filter(
+      (entry) =>
+        entry.speaker === "participant" &&
+        entry.draft &&
+        entry.questionIndex === questionIndex,
+    ),
+  );
+}
+
+function getPendingInputFragments(questionIndex = state.currentQuestionIndex) {
+  const fragments = [];
+  for (const [itemId, rawText] of state.inputTranscriptDeltas.entries()) {
+    const text = String(rawText || "").trim();
+    if (!text || state.inputQuestionByItemId.get(itemId) !== questionIndex) continue;
+    if (
+      state.transcript.some(
+        (entry) => entry.speaker === "participant" && entry.itemId === itemId,
+      )
+    ) continue;
+    fragments.push({ text, segmentOrder: ensureInputSequence(itemId) });
+  }
+  if (questionIndex === state.currentQuestionIndex && state.previewInterimText.trim()) {
+    fragments.push({
+      text: state.previewInterimText.trim(),
+      segmentOrder: state.nextInputSequence,
+    });
+  }
+  return fragments.sort((left, right) => left.segmentOrder - right.segmentOrder);
+}
+
+function getCurrentAnswerText(
+  questionIndex = state.currentQuestionIndex,
+  { includePending = true } = {},
+) {
+  const fragments = getDraftEntries(questionIndex).map((entry) => entry.text);
+  if (includePending) {
+    fragments.push(...getPendingInputFragments(questionIndex).map((fragment) => fragment.text));
+  }
+  return fragments.filter(Boolean).join("\n\n").trim();
+}
+
+function hasCurrentAnswerContent() {
+  return Boolean(
+    getCurrentAnswerText() ||
+      elements.manualAnswerInput?.value.trim() ||
+      [...state.pendingInputItemIds].some(
+        (itemId) => state.inputQuestionByItemId.get(itemId) === state.currentQuestionIndex,
+      ),
+  );
+}
+
+function updateAnswerControls() {
+  const person = getSelectedInterviewee();
+  const isLastQuestion = Boolean(
+    person && state.currentQuestionIndex >= person.questions.length - 1,
+  );
+  const canEdit =
+    state.interviewActive &&
+    !state.finalizing &&
+    !state.closingRequested &&
+    !state.answerSubmitting;
+  const canSubmit =
+    canEdit &&
+    state.awaitingAnswer &&
+    !state.assistantResponding &&
+    hasCurrentAnswerContent();
+
+  elements.completeAnswerButton.textContent = state.answerSubmitting
+    ? "Guardando respuesta…"
+    : isLastQuestion
+      ? "He terminado · finalizar entrevista"
+      : "He terminado de responder";
+  elements.answerCompleteHint.textContent = state.answerSubmitting
+    ? "Guardando todo lo que has dicho…"
+    : isLastQuestion
+      ? "Enviar esta última respuesta y terminar la entrevista"
+      : "Enviar esta respuesta y pasar a la siguiente pregunta";
+  elements.completeAnswerButton.disabled = !canSubmit;
+  elements.answerActions.setAttribute("aria-busy", state.answerSubmitting ? "true" : "false");
+  elements.manualAnswerInput.disabled = !canEdit;
+  elements.submitManualAnswerButton.disabled =
+    !canEdit ||
+    !state.awaitingAnswer ||
+    state.assistantResponding ||
+    !elements.manualAnswerInput.value.trim();
+  elements.repeatQuestionButton.disabled =
+    state.assistantResponding || state.answerSubmitting || state.finalizing;
+}
+
+function renderCurrentAnswerDraft({ emptyText = EMPTY_ANSWER_COPY } = {}) {
+  elements.liveTranscriptText.textContent = getCurrentAnswerText() || emptyText;
+  updateAnswerControls();
+}
+
 function setAssistantResponding(responding) {
   state.assistantResponding = Boolean(responding);
-  elements.repeatQuestionButton.disabled = state.assistantResponding;
+  updateAnswerControls();
 }
 
 function updateKeyStatus() {
@@ -540,24 +697,45 @@ function renderCurrentQuestion() {
   elements.questionCounter.textContent = `Pregunta ${visibleIndex + 1} de ${total}`;
   elements.progressBar.style.width = `${(state.answeredQuestionIndexes.size / total) * 100}%`;
   renderQuestionMap();
+  updateAnswerControls();
 }
 
 function renderAnswers() {
-  const participantEntries = state.transcript.filter((entry) => entry.speaker === "participant");
+  const participantEntries = sortAnswerFragments(
+    state.transcript.filter(
+      (entry) => entry.speaker === "participant" && !entry.draft,
+    ),
+  );
   if (!participantEntries.length) {
     elements.answerList.innerHTML = `
       <div class="empty-answers">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>
-        <p>Las respuestas irán apareciendo aquí sin interrumpir la conversación.</p>
+        <p>Las respuestas aparecerán aquí cuando indiques que has terminado.</p>
       </div>`;
     return;
   }
-  elements.answerList.innerHTML = participantEntries
+  const groupedAnswers = new Map();
+  for (const entry of participantEntries) {
+    const key = Number.isInteger(entry.questionIndex) ? entry.questionIndex : "other";
+    const answer = groupedAnswers.get(key) || {
+      questionIndex: entry.questionIndex,
+      fragments: [],
+      partial: false,
+    };
+    answer.fragments.push(entry.text);
+    answer.partial ||= entry.partial;
+    groupedAnswers.set(key, answer);
+  }
+  elements.answerList.innerHTML = [...groupedAnswers.values()]
     .map(
-      (entry) => `
+      (answer) => `
         <article class="answer-card">
-          <span>Respuesta ${(entry.questionIndex ?? 0) + 1}${entry.partial ? " · parcial" : ""}</span>
-          <p>${escapeHtml(entry.text)}</p>
+          <span>${
+            Number.isInteger(answer.questionIndex)
+              ? `Respuesta ${answer.questionIndex + 1}`
+              : "Respuesta"
+          }${answer.partial ? " · transcripción parcial" : ""}</span>
+          <p>${escapeHtml(answer.fragments.join("\n\n"))}</p>
         </article>
       `,
     )
@@ -580,7 +758,7 @@ function renderTranscriptEditor() {
             entry.speaker === "interviewer" ? "Entrevistadora" : "Participante"
           }${Number.isInteger(entry.questionIndex) ? ` · P${entry.questionIndex + 1}` : ""}${
             entry.partial ? " · transcripción parcial" : ""
-          }</label>
+          }${entry.draft ? " · respuesta en curso" : ""}</label>
           <textarea id="transcript-${escapeHtml(entry.id)}" data-entry-id="${escapeHtml(
             entry.id,
           )}">${escapeHtml(entry.text)}</textarea>
@@ -601,14 +779,24 @@ function renderInterviewShell() {
   elements.interviewPersonInitial.textContent = initials(person.name);
   elements.interviewPersonName.textContent = person.name;
   elements.interviewPersonRole.textContent = person.area || person.role;
-  elements.liveTranscriptText.textContent = "Cuando hables, tus palabras aparecerán aquí.";
+  elements.liveTranscriptText.textContent = EMPTY_ANSWER_COPY;
   elements.manualAnswerInput.value = "";
   elements.answerList.innerHTML = "";
   renderCurrentQuestion();
   renderAnswers();
+  updateAnswerControls();
 }
 
-function addTranscriptEntry({ speaker, text, questionIndex, itemId, id, partial = false }) {
+function addTranscriptEntry({
+  speaker,
+  text,
+  questionIndex,
+  itemId,
+  id,
+  partial = false,
+  draft = false,
+  segmentOrder = null,
+}) {
   const normalizedText = String(text || "").trim();
   if (!normalizedText) return null;
   if (id && state.transcript.some((entry) => entry.id === id)) {
@@ -621,6 +809,8 @@ function addTranscriptEntry({ speaker, text, questionIndex, itemId, id, partial 
     text: normalizedText,
     questionIndex: Number.isInteger(questionIndex) ? questionIndex : null,
     partial: Boolean(partial),
+    draft: Boolean(draft),
+    segmentOrder: Number.isInteger(segmentOrder) ? segmentOrder : null,
     createdAt: new Date().toISOString(),
   };
   state.transcript.push(entry);
@@ -636,13 +826,14 @@ function materializePendingInputTranscripts() {
       (entry) => entry.speaker === "participant" && entry.itemId === itemId,
     );
     if (existing) continue;
-    addTranscriptEntry({
-      speaker: "participant",
-      text,
-      questionIndex: state.inputQuestionByItemId.get(itemId) ?? state.currentQuestionIndex,
+    recordParticipantSegment({
+      transcript: text,
+      questionIndex:
+        state.inputQuestionByItemId.get(itemId) ?? state.inputFallbackQuestionIndex,
       itemId,
-      id: `participant-partial-${itemId}`,
       partial: true,
+      segmentOrder: ensureInputSequence(itemId),
+      save: false,
     });
   }
   state.inputTranscriptDeltas.clear();
@@ -753,21 +944,29 @@ function interviewToMarkdown(record) {
     `- Estado: ${record.status}`,
     "",
   ];
-  const participantEntries = record.transcript.filter((entry) => entry.speaker === "participant");
+  const participantEntries = sortAnswerFragments(
+    record.transcript.filter((entry) => entry.speaker === "participant"),
+  );
   record.questions.forEach((question, questionIndex) => {
     lines.push(`## ${questionIndex + 1}. ${question}`, "");
     const answers = participantEntries
       .filter((entry) => entry.questionIndex === questionIndex)
-      .map((entry) =>
-        entry.partial ? `${entry.text}\n\n_Transcripción parcial._` : entry.text,
-      );
+      .map((entry) => {
+        const notes = [];
+        if (entry.partial) notes.push("_Transcripción parcial._");
+        if (entry.draft) notes.push("_Respuesta en curso; todavía no confirmada._");
+        return notes.length ? `${entry.text}\n\n${notes.join("\n")}` : entry.text;
+      });
     lines.push(answers.length ? answers.join("\n\n") : "_Sin respuesta registrada._", "");
   });
   lines.push("---", "", "## Transcripción completa", "");
-  for (const entry of record.transcript) {
+  for (const entry of sortTranscriptForExport(record.transcript)) {
     const speaker = entry.speaker === "interviewer" ? "Entrevistadora" : "Participante";
-    const partialLabel = entry.partial ? " (transcripción parcial)" : "";
-    lines.push(`**${speaker}${partialLabel}:** ${entry.text}`, "");
+    const labels = [];
+    if (entry.partial) labels.push("transcripción parcial");
+    if (entry.draft) labels.push("respuesta en curso");
+    const statusLabel = labels.length ? ` (${labels.join(", ")})` : "";
+    lines.push(`**${speaker}${statusLabel}:** ${entry.text}`, "");
   }
   return `${lines.join("\n").trim()}\n`;
 }
@@ -843,6 +1042,8 @@ function resetInterviewState(mode) {
   state.answeredQuestionIndexes = new Set();
   state.inputQuestionByItemId = new Map();
   state.inputTranscriptDeltas = new Map();
+  state.inputOrderByItemId = new Map();
+  state.inputFallbackQuestionIndex = 0;
   state.pendingInputItemIds = new Set();
   state.assistantTranscriptDeltas = new Map();
   state.assistantQuestionByResponseId = new Map();
@@ -856,6 +1057,8 @@ function resetInterviewState(mode) {
   state.connectionFallbackActive = false;
   state.interviewActive = true;
   state.awaitingAnswer = false;
+  state.answerSubmitting = false;
+  state.nextInputSequence = 0;
   state.closingRequested = false;
   state.muted = false;
   state.lastExports = null;
@@ -863,11 +1066,17 @@ function resetInterviewState(mode) {
   state.inputAnalyser = null;
   state.previewStopped = false;
   state.previewSpeaking = false;
+  state.previewRecognitionRunning = false;
+  state.previewRecognitionEndWaiters = [];
+  state.previewInterimText = "";
+  state.previewCurrentItemId = null;
   state.previewRecognitionDisabled = false;
   state.voiceUnavailableNotified = false;
   setAssistantResponding(false);
   state.realtimeEventTypes = [];
   elements.muteButton.classList.remove("is-muted");
+  elements.manualAnswerPanel.hidden = mode !== "preview";
+  elements.controlHint.textContent = ANSWER_GUIDANCE;
   renderInterviewShell();
   startTimer();
 }
@@ -1001,12 +1210,14 @@ async function activatePreviewFallback() {
   state.previewStopped = false;
   state.awaitingAnswer = true;
   elements.manualAnswerPanel.hidden = false;
-  elements.controlHint.textContent = "Modo de respaldo: escucharás OpenAI Marin y puedes responder hablando o por escrito.";
+  elements.controlHint.textContent = ANSWER_GUIDANCE;
   setConnectionStatus("warning", "Modo de respaldo");
   setInterviewVisualState("listening", "Puedes continuar");
-  elements.liveTranscriptText.textContent = hadUntranscribedAudio
-    ? "La última intervención no llegó a transcribirse. Repítela o escríbela para continuar."
-    : "La conexión Realtime se ha cerrado. Puedes continuar aquí.";
+  renderCurrentAnswerDraft({
+    emptyText: hadUntranscribedAudio
+      ? "La última intervención no llegó a transcribirse. Repítela o escríbela; no avanzaremos hasta que tú lo indiques."
+      : "La conexión Realtime se ha cerrado. Puedes continuar aquí y decidir cuándo terminar tu respuesta.",
+  });
   initializePreviewRecognition();
   startPreviewRecognition();
   await saveInterview("in_progress").catch(() => {});
@@ -1023,6 +1234,8 @@ function askRealtimeQuestion({ intro = false, repeat = false } = {}) {
     state.assistantResponding
   ) return;
   state.awaitingAnswer = false;
+  state.realtime.setMuted(true);
+  updateAnswerControls();
   state.pendingResponseQuestionIndex = state.currentQuestionIndex;
   setAssistantResponding(true);
   setInterviewVisualState("speaking", repeat ? "Repitiendo la pregunta" : "La entrevistadora está hablando");
@@ -1050,14 +1263,18 @@ function handleRealtimeEvent(event) {
   if (type === "input_audio_buffer.speech_started") {
     const itemId = event.item_id || crypto.randomUUID();
     state.pendingInputItemIds.add(itemId);
-    state.inputQuestionByItemId.set(itemId, state.currentQuestionIndex);
-    setInterviewVisualState("listening", "Te escucho");
-    elements.liveTranscriptText.textContent = "Escuchando…";
+    if (!state.inputQuestionByItemId.has(itemId)) {
+      state.inputQuestionByItemId.set(itemId, state.inputFallbackQuestionIndex);
+    }
+    ensureInputSequence(itemId);
+    setInterviewVisualState("listening", "Te escucho · tú decides cuándo seguir");
+    renderCurrentAnswerDraft({ emptyText: "Escuchando…" });
     return;
   }
 
   if (type === "input_audio_buffer.speech_stopped") {
-    setInterviewVisualState("thinking", "Transcribiendo tu respuesta");
+    setInterviewVisualState("thinking", "Guardando este fragmento");
+    updateAnswerControls();
     return;
   }
 
@@ -1066,17 +1283,31 @@ function handleRealtimeEvent(event) {
     const current = state.inputTranscriptDeltas.get(itemId) || "";
     const next = `${current}${event.delta || ""}`;
     state.inputTranscriptDeltas.set(itemId, next);
-    elements.liveTranscriptText.textContent = next || "Escuchando…";
+    if (!state.inputQuestionByItemId.has(itemId)) {
+      state.inputQuestionByItemId.set(itemId, state.inputFallbackQuestionIndex);
+    }
+    ensureInputSequence(itemId);
+    renderCurrentAnswerDraft({ emptyText: "Escuchando…" });
     return;
   }
 
   if (type === "conversation.item.input_audio_transcription.completed") {
     const itemId = event.item_id || crypto.randomUUID();
     const transcript = event.transcript || state.inputTranscriptDeltas.get(itemId) || "";
-    const questionIndex = state.inputQuestionByItemId.get(itemId) ?? state.currentQuestionIndex;
+    const questionIndex =
+      state.inputQuestionByItemId.get(itemId) ?? state.inputFallbackQuestionIndex;
     state.inputTranscriptDeltas.delete(itemId);
     state.pendingInputItemIds.delete(itemId);
-    handleParticipantTranscript({ transcript, itemId, questionIndex });
+    recordParticipantSegment({
+      transcript,
+      itemId,
+      questionIndex,
+      segmentOrder: ensureInputSequence(itemId),
+    });
+    if (!state.answerSubmitting && !state.finalizing) {
+      setInterviewVisualState("listening", "Tómate tu tiempo · puedes continuar");
+      renderCurrentAnswerDraft();
+    }
     return;
   }
 
@@ -1085,6 +1316,7 @@ function handleRealtimeEvent(event) {
     setInterviewVisualState("error", "No he podido transcribirlo");
     showToast("No he entendido esa respuesta. Puedes repetirla.", "error");
     state.awaitingAnswer = true;
+    renderCurrentAnswerDraft();
     return;
   }
 
@@ -1134,8 +1366,11 @@ function handleRealtimeEvent(event) {
       window.setTimeout(() => finalizeInterview("completed"), 800);
     } else {
       state.awaitingAnswer = true;
-      setInterviewVisualState("listening", "Te escucho");
-      elements.liveTranscriptText.textContent = "Cuando quieras, puedes responder.";
+      state.inputFallbackQuestionIndex = state.currentQuestionIndex;
+      state.realtime?.setMuted(state.muted);
+      setInterviewVisualState("listening", "Te escucho · tú decides cuándo seguir");
+      elements.controlHint.textContent = ANSWER_GUIDANCE;
+      renderCurrentAnswerDraft();
     }
     return;
   }
@@ -1148,65 +1383,175 @@ function handleRealtimeEvent(event) {
   }
 }
 
-async function handleParticipantTranscript({ transcript, itemId, questionIndex }) {
+function recordParticipantSegment({
+  transcript,
+  itemId,
+  questionIndex,
+  partial = false,
+  segmentOrder = null,
+  save = true,
+}) {
   const text = String(transcript || "").trim();
-  if (!text || !state.interviewActive) return;
+  if (!text || (!state.interviewActive && !state.finalizing)) return null;
   const safeQuestionIndex = Number.isInteger(questionIndex)
     ? questionIndex
     : state.currentQuestionIndex;
-  const partialEntry = state.transcript.find(
+  const existingEntry = state.transcript.find(
     (entry) => entry.speaker === "participant" && itemId && entry.itemId === itemId,
   );
-  if (partialEntry) {
-    partialEntry.text = text;
-    partialEntry.partial = false;
-    partialEntry.questionIndex = safeQuestionIndex;
-    renderAnswers();
+  const answerAlreadyCompleted = state.answeredQuestionIndexes.has(safeQuestionIndex);
+  let entry;
+  if (existingEntry) {
+    existingEntry.text = text;
+    existingEntry.partial = Boolean(partial);
+    existingEntry.questionIndex = safeQuestionIndex;
+    existingEntry.draft = !answerAlreadyCompleted;
+    if (Number.isInteger(segmentOrder)) existingEntry.segmentOrder = segmentOrder;
+    entry = existingEntry;
   } else {
-    addTranscriptEntry({
+    entry = addTranscriptEntry({
       speaker: "participant",
       text,
       questionIndex: safeQuestionIndex,
       itemId,
       id: `participant-${itemId || crypto.randomUUID()}`,
+      partial,
+      draft: !answerAlreadyCompleted,
+      segmentOrder: Number.isInteger(segmentOrder)
+        ? segmentOrder
+        : ensureInputSequence(itemId),
     });
   }
-  elements.liveTranscriptText.textContent = text;
-  if (state.finalizing) return;
+  renderAnswers();
+  if (safeQuestionIndex === state.currentQuestionIndex && !answerAlreadyCompleted) {
+    renderCurrentAnswerDraft();
+  } else {
+    updateAnswerControls();
+  }
+  if (save && !state.finalizing) saveInterview("in_progress").catch(() => {});
+  return entry;
+}
+
+function materializePreviewInterim(questionIndex = state.currentQuestionIndex) {
+  const text = state.previewInterimText.trim();
+  if (!text) return null;
+  const itemId = state.previewCurrentItemId || `preview-${crypto.randomUUID()}`;
+  const entry = recordParticipantSegment({
+    transcript: text,
+    itemId,
+    questionIndex,
+    partial: true,
+    segmentOrder: ensureInputSequence(itemId),
+    save: false,
+  });
+  state.previewInterimText = "";
+  return entry;
+}
+
+function restoreAnswerCapture() {
+  state.answerSubmitting = false;
+  state.awaitingAnswer = true;
+  state.realtime?.setMuted(state.muted);
+  setInterviewVisualState("listening", "Te escucho · tú decides cuándo seguir");
+  elements.controlHint.textContent = ANSWER_GUIDANCE;
+  renderCurrentAnswerDraft();
+  if (state.mode === "preview") startPreviewRecognition();
+}
+
+async function completeCurrentAnswer() {
+  if (
+    !state.interviewActive ||
+    !state.awaitingAnswer ||
+    state.answerSubmitting ||
+    state.assistantResponding ||
+    state.finalizing ||
+    state.closingRequested
+  ) return;
+
+  const questionIndex = state.currentQuestionIndex;
+  if (!hasCurrentAnswerContent()) {
+    showToast("Todavía no hay una respuesta que enviar.", "error");
+    return;
+  }
+
+  state.answerSubmitting = true;
+  state.awaitingAnswer = false;
+  setInterviewVisualState("thinking", "Preparando tu respuesta completa");
+  updateAnswerControls();
+
+  const typedText = elements.manualAnswerInput.value.trim();
+  if (typedText) {
+    const itemId = `typed-${crypto.randomUUID()}`;
+    recordParticipantSegment({
+      transcript: typedText,
+      itemId,
+      questionIndex,
+      segmentOrder: ensureInputSequence(itemId),
+      save: false,
+    });
+    elements.manualAnswerInput.value = "";
+  }
+
+  if (state.mode === "preview") {
+    stopPreviewRecognition({ graceful: true });
+    await waitForPreviewRecognitionEnd();
+    materializePreviewInterim(questionIndex);
+  } else {
+    state.realtime?.setMuted(true);
+    await waitForPendingInputTranscripts(6500);
+    materializePendingInputTranscripts();
+  }
+
+  const answerFragments = getDraftEntries(questionIndex);
+  if (!answerFragments.length) {
+    restoreAnswerCapture();
+    showToast(
+      "La última frase todavía no ha podido transcribirse. Espera un momento o añádela por escrito.",
+      "error",
+      6500,
+    );
+    return;
+  }
+
+  for (const entry of answerFragments) entry.draft = false;
+  state.answeredQuestionIndexes.add(questionIndex);
+  renderAnswers();
+  renderCurrentQuestion();
   await saveInterview("in_progress").catch(() => {});
   if (state.finalizing || !state.interviewActive) return;
 
-  if (state.answeredQuestionIndexes.has(safeQuestionIndex)) return;
-  state.answeredQuestionIndexes.add(safeQuestionIndex);
-  renderCurrentQuestion();
-
-  if (safeQuestionIndex !== state.currentQuestionIndex) return;
-  state.awaitingAnswer = false;
   const person = getSelectedInterviewee();
-  if (!person) return;
+  if (!person) {
+    restoreAnswerCapture();
+    return;
+  }
 
-  if (safeQuestionIndex >= person.questions.length - 1) {
+  state.answerSubmitting = false;
+  if (questionIndex >= person.questions.length - 1) {
+    updateAnswerControls();
     await beginClosing();
     return;
   }
 
   state.currentQuestionIndex += 1;
+  state.previewInterimText = "";
   renderCurrentQuestion();
+  renderCurrentAnswerDraft();
   await wait(520);
   if (state.finalizing || !state.interviewActive) return;
-  if (state.mode === "realtime") {
-    askRealtimeQuestion();
-  } else {
-    speakPreviewQuestion();
-  }
+  if (state.mode === "realtime") askRealtimeQuestion();
+  else speakPreviewQuestion();
 }
 
 async function beginClosing() {
   const person = getSelectedInterviewee();
   if (!person || state.closingRequested) return;
   state.closingRequested = true;
+  state.awaitingAnswer = false;
+  state.answerSubmitting = false;
   state.pendingResponseQuestionIndex = null;
   elements.progressBar.style.width = "100%";
+  updateAnswerControls();
   setInterviewVisualState("speaking", "Cerrando la entrevista");
   if (state.mode === "realtime" && state.realtime) {
     setAssistantResponding(true);
@@ -1235,9 +1580,7 @@ function wait(milliseconds) {
 
 async function startPreviewInterview(person) {
   elements.manualAnswerPanel.hidden = false;
-  elements.controlHint.textContent = hasPublishedVoice(person)
-    ? "OpenAI Marin hará las preguntas; puedes responder hablando o por escrito."
-    : "Puedes seguir las preguntas en pantalla y responder hablando o por escrito.";
+  elements.controlHint.textContent = ANSWER_GUIDANCE;
   initializePreviewRecognition();
   speakPreviewQuestion({ intro: true });
 }
@@ -1263,20 +1606,28 @@ function initializePreviewRecognition() {
       if (event.results[index].isFinal) finalText += text;
       else interim += text;
     }
-    elements.liveTranscriptText.textContent = finalText || interim || "Escuchando…";
+    state.previewInterimText = interim.trim();
     if (finalText.trim()) {
-      handleParticipantTranscript({
+      const itemId = `preview-final-${crypto.randomUUID()}`;
+      recordParticipantSegment({
         transcript: finalText,
-        itemId: `preview-${crypto.randomUUID()}`,
+        itemId,
         questionIndex: state.currentQuestionIndex,
+        segmentOrder: ensureInputSequence(itemId),
       });
     }
+    renderCurrentAnswerDraft({ emptyText: "Escuchando…" });
+  });
+  recognition.addEventListener("start", () => {
+    state.previewRecognitionRunning = true;
   });
   recognition.addEventListener("speechstart", () => {
-    setInterviewVisualState("listening", "Te escucho");
+    setInterviewVisualState("listening", "Te escucho · tú decides cuándo seguir");
   });
   recognition.addEventListener("speechend", () => {
-    setInterviewVisualState("thinking", "Transcribiendo tu respuesta");
+    if (!state.answerSubmitting) {
+      setInterviewVisualState("thinking", "Guardando este fragmento");
+    }
   });
   recognition.addEventListener("error", (event) => {
     if (!["no-speech", "aborted"].includes(event.error)) {
@@ -1285,10 +1636,23 @@ function initializePreviewRecognition() {
     }
   });
   recognition.addEventListener("end", () => {
+    state.previewRecognitionRunning = false;
+    const partialEntry = materializePreviewInterim(state.currentQuestionIndex);
+    if (partialEntry && !state.answerSubmitting && !state.finalizing) {
+      saveInterview("in_progress").catch(() => {});
+    }
+    state.previewCurrentItemId = null;
+    const waiters = state.previewRecognitionEndWaiters.splice(0);
+    for (const resolve of waiters) resolve();
+    if (!state.answerSubmitting && !state.finalizing && state.awaitingAnswer) {
+      setInterviewVisualState("listening", "Tómate tu tiempo · puedes continuar");
+      renderCurrentAnswerDraft();
+    }
     if (
       state.mode === "preview" &&
       state.interviewActive &&
       state.awaitingAnswer &&
+      !state.answerSubmitting &&
       !state.previewSpeaking &&
       !state.previewStopped &&
       !state.previewRecognitionDisabled &&
@@ -1303,6 +1667,9 @@ function initializePreviewRecognition() {
 function startPreviewRecognition() {
   if (
     !state.previewRecognition ||
+    state.previewRecognitionRunning ||
+    !state.awaitingAnswer ||
+    state.answerSubmitting ||
     state.previewSpeaking ||
     state.previewStopped ||
     state.previewRecognitionDisabled ||
@@ -1310,18 +1677,49 @@ function startPreviewRecognition() {
     state.finalizing
   ) return;
   try {
+    state.previewCurrentItemId = `preview-${crypto.randomUUID()}`;
+    state.previewRecognitionRunning = true;
     state.previewRecognition.start();
   } catch {
+    state.previewRecognitionRunning = false;
+    state.previewCurrentItemId = null;
     // El reconocimiento ya puede estar abierto.
   }
 }
 
-function stopPreviewRecognition() {
+function stopPreviewRecognition({ graceful = false } = {}) {
   try {
-    state.previewRecognition?.abort();
+    if (graceful) state.previewRecognition?.stop();
+    else state.previewRecognition?.abort();
   } catch {
     // Puede estar ya parado.
   }
+}
+
+function waitForPreviewRecognitionEnd(timeoutMs = 1800) {
+  if (!state.previewRecognitionRunning) return Promise.resolve();
+  return new Promise((resolve) => {
+    let settled = false;
+    let timeout;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      const index = state.previewRecognitionEndWaiters.indexOf(finish);
+      if (index >= 0) state.previewRecognitionEndWaiters.splice(index, 1);
+      resolve();
+    };
+    state.previewRecognitionEndWaiters.push(finish);
+    timeout = window.setTimeout(() => {
+      try {
+        state.previewRecognition?.abort();
+      } catch {
+        // El reconocimiento puede haberse cerrado sin emitir el evento final.
+      }
+      state.previewRecognitionRunning = false;
+      finish();
+    }, timeoutMs);
+  });
 }
 
 async function speakPreview(
@@ -1368,8 +1766,9 @@ async function speakPreview(
   if (state.finalizing) return;
   if (kind !== "closing") {
     state.awaitingAnswer = true;
-    setInterviewVisualState("listening", "Te escucho");
-    elements.liveTranscriptText.textContent = "Cuando quieras, puedes responder.";
+    setInterviewVisualState("listening", "Te escucho · tú decides cuándo seguir");
+    elements.controlHint.textContent = ANSWER_GUIDANCE;
+    renderCurrentAnswerDraft();
     startPreviewRecognition();
   }
 }
@@ -1388,16 +1787,25 @@ function speakPreviewQuestion({ intro = false, repeat = false } = {}) {
   });
 }
 
-async function submitManualAnswer() {
+function submitManualAnswer() {
   const text = elements.manualAnswerInput.value.trim();
-  if (!text || !state.interviewActive || !state.awaitingAnswer) return;
+  if (
+    !text ||
+    !state.interviewActive ||
+    !state.awaitingAnswer ||
+    state.answerSubmitting ||
+    state.assistantResponding
+  ) return;
+  const itemId = `typed-${crypto.randomUUID()}`;
   elements.manualAnswerInput.value = "";
-  stopPreviewRecognition();
-  await handleParticipantTranscript({
+  recordParticipantSegment({
     transcript: text,
-    itemId: `typed-${crypto.randomUUID()}`,
+    itemId,
     questionIndex: state.currentQuestionIndex,
+    segmentOrder: ensureInputSequence(itemId),
   });
+  setInterviewVisualState("listening", "Tómate tu tiempo · puedes continuar");
+  renderCurrentAnswerDraft();
 }
 
 async function stopActiveVoice() {
@@ -1428,12 +1836,31 @@ async function finalizeInterview(status = "completed") {
   state.finalizing = true;
   const previousEndedAt = state.endedAt;
   state.awaitingAnswer = false;
+  state.answerSubmitting = true;
   state.realtime?.setMuted(true);
-  stopPreviewRecognition();
+  updateAnswerControls();
   setInterviewVisualState("thinking", "Guardando la última respuesta");
   elements.liveTranscriptText.textContent = "Cerrando la conversación y preparando la transcripción…";
 
-  await waitForPendingInputTranscripts();
+  const typedText = elements.manualAnswerInput.value.trim();
+  if (typedText) {
+    const itemId = `typed-${crypto.randomUUID()}`;
+    recordParticipantSegment({
+      transcript: typedText,
+      itemId,
+      questionIndex: state.currentQuestionIndex,
+      segmentOrder: ensureInputSequence(itemId),
+      save: false,
+    });
+    elements.manualAnswerInput.value = "";
+  }
+  if (state.mode === "preview") {
+    stopPreviewRecognition({ graceful: true });
+    await waitForPreviewRecognitionEnd();
+    materializePreviewInterim(state.currentQuestionIndex);
+  } else {
+    await waitForPendingInputTranscripts();
+  }
   materializePendingInputTranscripts();
   const untranscribedInput = [...state.pendingInputItemIds].some(
     (itemId) =>
@@ -1452,7 +1879,10 @@ async function finalizeInterview(status = "completed") {
     setInterviewVisualState("error", "No se ha podido guardar");
     elements.liveTranscriptText.textContent = "La voz ya está cerrada. Pulsa Terminar para reintentar el guardado.";
     elements.controlHint.textContent = "Nada se marcará como guardado hasta que el servidor lo confirme.";
+    state.closingRequested = true;
+    state.answerSubmitting = false;
     state.finalizing = false;
+    updateAnswerControls();
     return false;
   }
   state.finalStatus = status;
@@ -1471,6 +1901,7 @@ async function finalizeInterview(status = "completed") {
       8500,
     );
   }
+  state.answerSubmitting = false;
   state.finalizing = false;
   return true;
 }
@@ -1478,7 +1909,12 @@ async function finalizeInterview(status = "completed") {
 function updateCompletionScreen() {
   const answered = new Set(
     state.transcript
-      .filter((entry) => entry.speaker === "participant" && Number.isInteger(entry.questionIndex))
+      .filter(
+        (entry) =>
+          entry.speaker === "participant" &&
+          !entry.draft &&
+          Number.isInteger(entry.questionIndex),
+      )
       .map((entry) => entry.questionIndex),
   ).size;
   elements.completedQuestionsStat.textContent = String(answered);
@@ -1696,11 +2132,8 @@ function toggleMuted() {
   }
   elements.controlHint.textContent = state.muted
     ? "Micrófono silenciado."
-    : state.mode === "preview"
-      ? hasPublishedVoice()
-        ? "OpenAI Marin hará las preguntas; puedes responder hablando o por escrito."
-        : "Puedes seguir las preguntas en pantalla y responder hablando o por escrito."
-      : "Puedes hablar con naturalidad y hacer pausas.";
+    : ANSWER_GUIDANCE;
+  updateAnswerControls();
 }
 
 function repeatCurrentQuestion() {
@@ -1764,8 +2197,13 @@ function bindEvents() {
   elements.finishInterviewButton.addEventListener("click", () => requestFinish());
   elements.leaveInterviewButton.addEventListener("click", () => requestFinish({ leaving: true }));
   elements.submitManualAnswerButton.addEventListener("click", submitManualAnswer);
+  elements.completeAnswerButton.addEventListener("click", completeCurrentAnswer);
+  elements.manualAnswerInput.addEventListener("input", updateAnswerControls);
   elements.manualAnswerInput.addEventListener("keydown", (event) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") submitManualAnswer();
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault();
+      completeCurrentAnswer();
+    }
   });
   elements.openTranscriptButton.addEventListener("click", () => {
     renderTranscriptEditor();
@@ -1830,6 +2268,18 @@ window.__interviewMvp = {
     publishedVoiceReady: state.publishedVoiceReady,
     previewSpeaking: state.previewSpeaking,
     awaitingAnswer: state.awaitingAnswer,
+    answerSubmitting: state.answerSubmitting,
+    answeredQuestionIndexes: [...state.answeredQuestionIndexes],
+    currentAnswerDraft: getCurrentAnswerText(),
+    participantEntries: state.transcript
+      .filter((entry) => entry.speaker === "participant")
+      .map(({ text, questionIndex, partial, draft, segmentOrder }) => ({
+        text,
+        questionIndex,
+        partial,
+        draft,
+        segmentOrder,
+      })),
     voiceMetadata: publishedVoice.metadata,
     lastRealtimeEvents: [...state.realtimeEventTypes],
   }),

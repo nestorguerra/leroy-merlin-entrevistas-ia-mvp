@@ -301,6 +301,86 @@ test("conserva el indicador de una transcripción parcial", async () => {
   assert.equal(record.transcript[0].partial, true);
 });
 
+test("conserva una respuesta en curso sin marcarla como terminada", async () => {
+  const interviewees = (await api("/api/interviewees")).body.interviewees;
+  const person = interviewees[0];
+  const saved = await api("/api/interviews", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      status: "cancelled",
+      mode: "realtime",
+      participant: person,
+      questions: person.questions,
+      transcript: [
+        {
+          id: "respuesta-en-curso",
+          itemId: "item-en-curso",
+          speaker: "participant",
+          questionIndex: 0,
+          text: "Una idea que la persona todavía estaba desarrollando.",
+          draft: true,
+          segmentOrder: 3,
+        },
+      ],
+    }),
+  });
+  assert.equal(saved.response.status, 200);
+  generatedIds.push(saved.body.sessionId);
+
+  const jsonExport = await fetch(
+    `${BASE_URL}/api/interviews/${saved.body.sessionId}/export?format=json`,
+  );
+  const record = await jsonExport.json();
+  assert.equal(record.transcript[0].draft, true);
+  assert.equal(record.transcript[0].segmentOrder, 3);
+
+  const markdownExport = await fetch(
+    `${BASE_URL}/api/interviews/${saved.body.sessionId}/export?format=md`,
+  );
+  assert.match(await markdownExport.text(), /respuesta en curso/i);
+});
+
+test("exporta los fragmentos de voz en el orden en que se dijeron", async () => {
+  const interviewees = (await api("/api/interviewees")).body.interviewees;
+  const person = interviewees[0];
+  const saved = await api("/api/interviews", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      status: "completed",
+      mode: "realtime",
+      participant: person,
+      questions: person.questions,
+      transcript: [
+        {
+          id: "fragmento-segundo",
+          speaker: "participant",
+          questionIndex: 0,
+          text: "SEGUNDO FRAGMENTO",
+          segmentOrder: 2,
+        },
+        {
+          id: "fragmento-primero",
+          speaker: "participant",
+          questionIndex: 0,
+          text: "PRIMER FRAGMENTO",
+          segmentOrder: 1,
+        },
+      ],
+    }),
+  });
+  assert.equal(saved.response.status, 200);
+  generatedIds.push(saved.body.sessionId);
+
+  const markdownExport = await fetch(
+    `${BASE_URL}/api/interviews/${saved.body.sessionId}/export?format=md`,
+  );
+  const markdown = await markdownExport.text();
+  const fullTranscript = markdown.split("## Transcripción completa")[1];
+  assert.ok(fullTranscript.indexOf("PRIMER FRAGMENTO") < fullTranscript.indexOf("SEGUNDO FRAGMENTO"));
+});
+
 test("una escritura tardía no degrada una entrevista finalizada", async () => {
   const interviewees = (await api("/api/interviewees")).body.interviewees;
   const person = interviewees[0];

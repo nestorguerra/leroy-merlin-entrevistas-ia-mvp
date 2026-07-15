@@ -8,6 +8,8 @@ MVP para realizar entrevistas por voz con una guía distinta para cada persona y
 
 La demo pública permite recorrer las preguntas, responder hablando o escribiendo y descargar la transcripción en Markdown, TXT y JSON. La entrevistadora se oye con audios generados previamente mediante OpenAI `gpt-4o-mini-tts` y la voz `marin`; la interfaz indica expresamente que es una voz generada por IA.
 
+Las pausas no hacen avanzar la entrevista: cada fragmento se acumula en la respuesta actual y solo se pasa a la siguiente pregunta al pulsar **He terminado de responder**.
+
 GitHub Pages no contiene ninguna clave ni hace llamadas a OpenAI durante la entrevista: sirve los MP3 ya publicados. Si se importa un perfil que todavía no tiene su paquete de audio, la entrevista continúa por texto, sin sustituirlo por una voz distinta del navegador. La conversación Realtime completa sigue disponible en la copia local descrita abajo.
 
 ## Abrir el MVP
@@ -102,6 +104,7 @@ El modo **Probar el recorrido** permite revisar la interfaz, la secuencia de pre
 - [Modelo GPT‑Realtime‑1.5](https://developers.openai.com/api/docs/models/gpt-realtime-1.5)
 - [Texto a voz de OpenAI](https://developers.openai.com/api/docs/guides/text-to-speech)
 - [Opciones de voz de Realtime](https://developers.openai.com/api/docs/guides/realtime-conversations#voice-options)
+- [Detección de voz y control manual de turnos](https://developers.openai.com/api/docs/guides/realtime-vad)
 - [Eventos de Realtime](https://developers.openai.com/api/reference/resources/realtime/server-events)
 - [Recursos gráficos oficiales de Leroy Merlin](https://corporativo.leroymerlin.es/recursos-graficos)
 - [Web actual de Leroy Merlin España](https://www.leroymerlin.es/)

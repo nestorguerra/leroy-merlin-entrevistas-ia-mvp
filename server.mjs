@@ -329,6 +329,8 @@ function sanitizeTranscriptEntry(entry, index) {
     text: cleanString(entry?.text, 20000),
     questionIndex: Number.isInteger(entry?.questionIndex) ? entry.questionIndex : null,
     partial: Boolean(entry?.partial),
+    draft: Boolean(entry?.draft),
+    segmentOrder: Number.isInteger(entry?.segmentOrder) ? entry.segmentOrder : null,
     createdAt: cleanString(entry?.createdAt, 50) || new Date().toISOString(),
   };
 }
@@ -369,6 +371,35 @@ function sanitizeInterviewRecord(body) {
   };
 }
 
+function sortTranscriptForExport(entries) {
+  const speakerOrder = { interviewer: 0, participant: 1, system: 2 };
+  return entries
+    .map((entry, originalIndex) => ({ entry, originalIndex }))
+    .sort((left, right) => {
+      const leftQuestion = Number.isInteger(left.entry.questionIndex)
+        ? left.entry.questionIndex
+        : Number.MAX_SAFE_INTEGER;
+      const rightQuestion = Number.isInteger(right.entry.questionIndex)
+        ? right.entry.questionIndex
+        : Number.MAX_SAFE_INTEGER;
+      if (leftQuestion !== rightQuestion) return leftQuestion - rightQuestion;
+      const leftSpeaker = speakerOrder[left.entry.speaker] ?? 3;
+      const rightSpeaker = speakerOrder[right.entry.speaker] ?? 3;
+      if (leftSpeaker !== rightSpeaker) return leftSpeaker - rightSpeaker;
+      if (left.entry.speaker === "participant") {
+        const leftOrder = Number.isInteger(left.entry.segmentOrder)
+          ? left.entry.segmentOrder
+          : Number.MAX_SAFE_INTEGER;
+        const rightOrder = Number.isInteger(right.entry.segmentOrder)
+          ? right.entry.segmentOrder
+          : Number.MAX_SAFE_INTEGER;
+        if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+      }
+      return left.originalIndex - right.originalIndex;
+    })
+    .map(({ entry }) => entry);
+}
+
 function interviewToMarkdown(record) {
   const title = record.participant.fullName || record.participant.name || "Entrevista";
   const lines = [
@@ -383,22 +414,39 @@ function interviewToMarkdown(record) {
     "",
   ];
 
-  const participantEntries = record.transcript.filter((entry) => entry.speaker === "participant");
+  const participantEntries = record.transcript
+    .filter((entry) => entry.speaker === "participant")
+    .sort((left, right) => {
+      const leftOrder = Number.isInteger(left.segmentOrder)
+        ? left.segmentOrder
+        : Number.MAX_SAFE_INTEGER;
+      const rightOrder = Number.isInteger(right.segmentOrder)
+        ? right.segmentOrder
+        : Number.MAX_SAFE_INTEGER;
+      if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+      return String(left.createdAt || "").localeCompare(String(right.createdAt || ""));
+    });
   record.questions.forEach((question, questionIndex) => {
     lines.push(`## ${questionIndex + 1}. ${question}`, "");
     const answers = participantEntries
       .filter((entry) => entry.questionIndex === questionIndex)
-      .map((entry) =>
-        entry.partial ? `${entry.text}\n\n_Transcripción parcial._` : entry.text,
-      );
+      .map((entry) => {
+        const notes = [];
+        if (entry.partial) notes.push("_Transcripción parcial._");
+        if (entry.draft) notes.push("_Respuesta en curso; todavía no confirmada._");
+        return notes.length ? `${entry.text}\n\n${notes.join("\n")}` : entry.text;
+      });
     lines.push(answers.length ? answers.join("\n\n") : "_Sin respuesta registrada._", "");
   });
 
   lines.push("---", "", "## Transcripción completa", "");
-  for (const entry of record.transcript) {
+  for (const entry of sortTranscriptForExport(record.transcript)) {
     const speaker = entry.speaker === "interviewer" ? "Entrevistadora" : "Participante";
-    const partialLabel = entry.partial ? " (transcripción parcial)" : "";
-    lines.push(`**${speaker}${partialLabel}:** ${entry.text}`, "");
+    const labels = [];
+    if (entry.partial) labels.push("transcripción parcial");
+    if (entry.draft) labels.push("respuesta en curso");
+    const statusLabel = labels.length ? ` (${labels.join(", ")})` : "";
+    lines.push(`**${speaker}${statusLabel}:** ${entry.text}`, "");
   }
   return `${lines.join("\n").trim()}\n`;
 }
