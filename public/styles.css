@@ -1149,8 +1149,11 @@ svg {
   display: grid;
   width: min(650px, 100%);
   min-height: 68px;
+  max-height: 180px;
   margin-top: clamp(18px, 3vh, 30px);
   padding: 13px 17px;
+  overflow: auto;
+  overflow-wrap: anywhere;
   border: 1px solid var(--line);
   border-left: 3px solid var(--lm-lime);
   background: rgba(255, 255, 255, 0.88);
@@ -1169,6 +1172,7 @@ svg {
   color: var(--ink-soft);
   font-size: 13px;
   line-height: 1.45;
+  white-space: pre-wrap;
 }
 
 .manual-answer {
@@ -1208,6 +1212,35 @@ svg {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.manual-answer button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.answer-actions {
+  display: grid;
+  width: min(650px, 100%);
+  margin-top: 14px;
+  gap: 6px;
+  justify-items: center;
+}
+
+.answer-complete-button {
+  width: 100%;
+  min-height: 58px;
+}
+
+.answer-actions__hint {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.answer-actions[aria-busy="true"] .answer-actions__hint {
+  color: var(--lm-green-hover);
 }
 
 .interview-controls {
@@ -1379,6 +1412,7 @@ svg {
   color: var(--ink-soft);
   font-size: 12px;
   line-height: 1.5;
+  white-space: pre-wrap;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
 }
@@ -2349,6 +2383,11 @@ dialog::backdrop {
     --header-height: 74px;
   }
 
+  .screen--interview.is-active {
+    transform: none;
+    animation: none;
+  }
+
   .app-header {
     padding: 0 16px;
   }
@@ -2475,7 +2514,7 @@ dialog::backdrop {
 
   .interview-stage {
     min-height: calc(100vh - 72px);
-    padding: 25px 18px 22px;
+    padding: 25px 18px 125px;
     justify-content: flex-start;
   }
 
@@ -2490,7 +2529,29 @@ dialog::backdrop {
   }
 
   .live-transcript {
+    max-height: 160px;
     margin-top: 20px;
+  }
+
+  .answer-actions {
+    position: fixed;
+    z-index: 6;
+    right: 18px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    left: 18px;
+    width: auto;
+    padding: 10px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .answer-complete-button {
+    min-height: 56px;
+  }
+
+  .answer-actions__hint {
+    display: none;
   }
 
   .settings-two-columns {
