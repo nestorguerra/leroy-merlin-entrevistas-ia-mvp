@@ -1,0 +1,55 @@
+name: ChatGPT temporary Whisper runtime
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  package-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Build a portable whisper.cpp CLI
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake build-essential curl ca-certificates
+          git clone --depth 1 https://github.com/ggerganov/whisper.cpp.git /tmp/whisper.cpp
+          cmake -S /tmp/whisper.cpp -B /tmp/whisper.cpp/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DWHISPER_BUILD_SERVER=OFF \
+            -DGGML_NATIVE=OFF \
+            -DGGML_AVX2=ON \
+            -DGGML_FMA=ON \
+            -DGGML_F16C=ON
+          cmake --build /tmp/whisper.cpp/build --config Release --target whisper-cli -j 2
+          mkdir -p "$GITHUB_WORKSPACE/whisper-runtime"
+          cp /tmp/whisper.cpp/build/bin/whisper-cli "$GITHUB_WORKSPACE/whisper-runtime/whisper-cli"
+          chmod +x "$GITHUB_WORKSPACE/whisper-runtime/whisper-cli"
+          "$GITHUB_WORKSPACE/whisper-runtime/whisper-cli" --help > "$GITHUB_WORKSPACE/whisper-runtime/help.txt" 2>&1 || true
+          ldd "$GITHUB_WORKSPACE/whisper-runtime/whisper-cli" > "$GITHUB_WORKSPACE/whisper-runtime/ldd.txt" || true
+
+      - name: Download the Spanish-capable large-v3-turbo model
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl -L --fail --retry 5 --retry-all-errors \
+            --output "$GITHUB_WORKSPACE/whisper-runtime/ggml-large-v3-turbo-q5_0.bin" \
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin"
+          sha256sum "$GITHUB_WORKSPACE/whisper-runtime/"* > "$GITHUB_WORKSPACE/whisper-runtime/SHA256SUMS.txt"
+          du -h "$GITHUB_WORKSPACE/whisper-runtime/"*
+
+      - name: Upload temporary runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: whisper-runtime-linux-x64-large-v3-turbo-q5
+          path: whisper-runtime/
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
