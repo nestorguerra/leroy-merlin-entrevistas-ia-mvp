@@ -10,7 +10,7 @@ permissions:
 jobs:
   package-runtime:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 25
     steps:
       - name: Build a portable whisper.cpp CLI
         shell: bash
@@ -35,20 +35,20 @@ jobs:
           "$GITHUB_WORKSPACE/whisper-runtime/whisper-cli" --help > "$GITHUB_WORKSPACE/whisper-runtime/help.txt" 2>&1 || true
           ldd "$GITHUB_WORKSPACE/whisper-runtime/whisper-cli" > "$GITHUB_WORKSPACE/whisper-runtime/ldd.txt" || true
 
-      - name: Download compact multilingual large-v3-turbo model
+      - name: Download multilingual small model
         shell: bash
         run: |
           set -euxo pipefail
           curl -L --fail --retry 5 --retry-all-errors \
-            --output "$GITHUB_WORKSPACE/whisper-runtime/ggml-large-v3-turbo-q4_0.bin" \
-            "https://huggingface.co/altalt-org/whisper-large-v3-4bit-decoder-ggml/resolve/main/ggml-large-v3-turbo-q4_0.bin"
+            --output "$GITHUB_WORKSPACE/whisper-runtime/ggml-small-q5_1.bin" \
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin"
           sha256sum "$GITHUB_WORKSPACE/whisper-runtime/"* > "$GITHUB_WORKSPACE/whisper-runtime/SHA256SUMS.txt"
           du -h "$GITHUB_WORKSPACE/whisper-runtime/"*
 
       - name: Upload temporary runtime
         uses: actions/upload-artifact@v4
         with:
-          name: whisper-runtime-linux-x64-large-v3-turbo-q4
+          name: whisper-runtime-linux-x64-small-q5
           path: whisper-runtime/
           if-no-files-found: error
           retention-days: 1
