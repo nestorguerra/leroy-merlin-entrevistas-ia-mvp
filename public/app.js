@@ -11,6 +11,9 @@ const IS_STATIC_DEMO =
 const LOCKED_PERSON_ID = (new URLSearchParams(window.location.search).get("soy") || "")
   .trim()
   .toLowerCase();
+// Modo administración: ?elige muestra el selector completo de personas.
+const SHOW_FULL_SELECTOR =
+  new URLSearchParams(window.location.search).has("elige") || IS_STATIC_DEMO;
 const ANSWER_GUIDANCE =
   "Puedes parar a pensar todo el tiempo que necesites. Solo avanzaremos cuando pulses «He terminado de responder».";
 const EMPTY_ANSWER_COPY =
@@ -26,6 +29,8 @@ const elements = {
   peopleGrid: $("#peopleGrid"),
   peopleSection: $("#peopleSection"),
   personSelect: $("#personSelect"),
+  personSelectGroup: $("#personSelectGroup"),
+  personalLinkNotice: $("#personalLinkNotice"),
   selectedPersonSummary: $("#selectedPersonSummary"),
   selectedPersonInitial: $("#selectedPersonInitial"),
   selectedPersonName: $("#selectedPersonName"),
@@ -691,10 +696,27 @@ function renderSettingsPeople() {
             person.role,
           )}</span></div>
           <small>${person.questions.length} preguntas</small>
+          <button class="text-action" type="button" data-copy-link="${escapeHtml(person.id)}">
+            Copiar enlace
+          </button>
         </div>
       `,
     )
     .join("");
+  $$("[data-copy-link]", elements.settingsProfileList).forEach((button) => {
+    button.addEventListener("click", async () => {
+      const link = `${window.location.origin}/?soy=${encodeURIComponent(button.dataset.copyLink)}`;
+      try {
+        await navigator.clipboard.writeText(link);
+        button.textContent = "Copiado";
+        window.setTimeout(() => {
+          button.textContent = "Copiar enlace";
+        }, 1800);
+      } catch {
+        window.prompt("Copia el enlace personal:", link);
+      }
+    });
+  });
 }
 
 function updateSelectedPerson() {
@@ -2701,6 +2723,10 @@ async function initialize() {
   if (LOCKED_PERSON_ID) {
     elements.manageProfilesButton.hidden = true;
     elements.openSettingsButton.hidden = true;
+  } else if (!SHOW_FULL_SELECTOR) {
+    // Sin enlace personal no se muestra la lista de personas: privacidad ante todo.
+    elements.personSelectGroup.hidden = true;
+    elements.personalLinkNotice.hidden = false;
   }
   try {
     await Promise.all([loadConfig(), loadInterviewees(), loadHistory()]);

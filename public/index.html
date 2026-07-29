@@ -55,12 +55,17 @@
                 Sin formularios. Sin respuestas prefabricadas. Solo una conversación.
               </p>
 
-              <div class="person-select-group">
+              <div class="person-select-group" id="personSelectGroup">
                 <label for="personSelect">¿Quién eres?</label>
                 <select id="personSelect" class="person-select">
                   <option value="">Cargando personas…</option>
                 </select>
               </div>
+
+              <p class="personal-link-notice" id="personalLinkNotice" hidden>
+                Esta entrevista se abre con el <strong>enlace personal</strong> que te ha enviado el equipo del proyecto.
+                Si no lo tienes, pídeselo a tu responsable o al equipo de NCompany.
+              </p>
 
               <div class="selected-person" id="selectedPersonSummary" aria-live="polite">
                 <div class="selected-person__avatar" id="selectedPersonInitial">C</div>
