@@ -76,14 +76,14 @@
               </label>
 
               <div class="setup-actions">
-                <button class="button button--primary" id="startRealtimeButton" type="button" disabled>
-                  <span>Empezar entrevista</span>
+                <button class="button button--primary" id="startAsyncButton" type="button" disabled>
+                  <span>Empezar mi entrevista</span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
                 </button>
-                <button class="button button--secondary" id="startAsyncButton" type="button" disabled>
-                  Entrevista asíncrona · leer y responder por voz
+                <button class="button button--secondary" id="startRealtimeButton" type="button" disabled hidden>
+                  Entrevista por voz en directo
                 </button>
-                <button class="button button--secondary" id="startPreviewButton" type="button" disabled>
+                <button class="button button--secondary" id="startPreviewButton" type="button" disabled hidden>
                   Probar el recorrido
                 </button>
               </div>
@@ -99,7 +99,7 @@
                 </span>
                 <span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" /></svg>
-                  <span id="voiceTrustLabel">Voz IA de OpenAI · Marin</span>
+                  <span id="voiceTrustLabel">Respondes hablando · solo se guarda el texto</span>
                 </span>
               </div>
             </div>
@@ -109,8 +109,8 @@
                 <canvas class="presence-canvas" id="welcomeCanvas"></canvas>
                 <div class="presence-aura" aria-hidden="true"></div>
                 <div class="presence-caption">
-                  <span class="presence-caption__status" id="presenceVoiceLabel"><i></i>Voz generada por IA · OpenAI Marin</span>
-                  <strong>Una voz cálida.<br />Una pregunta cada vez.</strong>
+                  <span class="presence-caption__status" id="presenceVoiceLabel"><i></i>Preguntas por escrito · respondes con tu voz</span>
+                  <strong>A tu ritmo.<br />Una pregunta cada vez.</strong>
                 </div>
               </div>
               <div class="mini-quote">
@@ -123,8 +123,8 @@
           <div class="people-section">
             <div class="section-heading">
               <div>
-                <span>Perfiles disponibles</span>
-                <h2>Elige la entrevista que quieres probar</h2>
+                <span>¿Quién eres?</span>
+                <h2>Elige tu nombre: cada persona tiene sus propias preguntas</h2>
               </div>
               <button class="text-action" id="manageProfilesButton" type="button">
                 Cargar personas y preguntas

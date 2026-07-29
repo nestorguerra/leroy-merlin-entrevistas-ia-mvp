@@ -50,7 +50,11 @@ En **Ajustes → Crear con IA** puedes generar la ficha completa de una persona 
 
 ## Entrevista asíncrona (pregunta en texto, respuesta por voz)
 
-El botón **Entrevista asíncrona · leer y responder por voz** inicia el modo pensado para escalar la recogida a muchas personas: la pregunta se muestra en texto (más precisa con la jerga interna y sin coste de voz en tiempo real) y la persona responde hablando. La grabación se hace con el botón **Grabar respuesta** (se pueden grabar varios fragmentos por pregunta, y añadir texto), y se transcribe en el servidor con `gpt-4o-transcribe` usando un glosario de términos internos (opecom, PAC, Com360, HG, Dameo…) para minimizar errores de reconocimiento. El audio no se guarda: solo la transcripción. Las repreguntas de profundización funcionan también en este modo, en texto. Configurable con `OPENAI_TRANSCRIBE_MODEL` y `OPENAI_TRANSCRIBE_PROMPT`.
+La entrevista asíncrona es ahora el **modo principal**: la portada pregunta «¿Quién eres?», la persona elige su nombre y solo ve sus propias preguntas. El botón **Empezar mi entrevista** inicia el recorrido. Los modos Realtime y de prueba siguen en el código pero ocultos en la interfaz.
+
+Con el parámetro `?soy=<id>` se puede enviar a cada persona su **enlace personal** (p. ej. `http://127.0.0.1:4177/?soy=marta-toledano`): el selector queda fijado a su entrevista y se ocultan el resto de perfiles y los ajustes.
+
+Cómo funciona el modo: la pregunta se muestra en texto (más precisa con la jerga interna y sin coste de voz en tiempo real) y la persona responde hablando. La grabación se hace con el botón **Grabar respuesta** (se pueden grabar varios fragmentos por pregunta, y añadir texto), y se transcribe en el servidor con `gpt-4o-transcribe` usando un glosario de términos internos (opecom, PAC, Com360, HG, Dameo…) para minimizar errores de reconocimiento. El audio no se guarda: solo la transcripción. Las repreguntas de profundización funcionan también en este modo, en texto. Configurable con `OPENAI_TRANSCRIBE_MODEL` y `OPENAI_TRANSCRIBE_PROMPT`.
 
 ## Repreguntas de profundización
 

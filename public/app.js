@@ -7,6 +7,10 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const IS_STATIC_DEMO =
   window.location.hostname.endsWith(".github.io") ||
   new URLSearchParams(window.location.search).has("pages-demo");
+// Enlace personal: ?soy=<id> fija la entrevista de esa persona y oculta el resto.
+const LOCKED_PERSON_ID = (new URLSearchParams(window.location.search).get("soy") || "")
+  .trim()
+  .toLowerCase();
 const ANSWER_GUIDANCE =
   "Puedes parar a pensar todo el tiempo que necesites. Solo avanzaremos cuando pulses «He terminado de responder».";
 const EMPTY_ANSWER_COPY =
@@ -594,6 +598,7 @@ async function loadInterviewees({ preserveSelection = true } = {}) {
   const payload = await fetchJson(IS_STATIC_DEMO ? "./data/interviewees.json" : "/api/interviewees");
   state.interviewees = Array.isArray(payload) ? payload : payload.interviewees || [];
   state.selectedIntervieweeId =
+    state.interviewees.find((person) => person.id === LOCKED_PERSON_ID)?.id ||
     state.interviewees.find((person) => person.id === previousSelection)?.id ||
     state.interviewees[0]?.id ||
     null;
@@ -607,7 +612,15 @@ function renderPeople() {
     elements.peopleGrid.innerHTML = '<p class="history-empty">No hay perfiles cargados.</p>';
     return;
   }
-  elements.peopleGrid.innerHTML = state.interviewees
+  const visiblePeople = LOCKED_PERSON_ID
+    ? state.interviewees.filter((person) => person.id === LOCKED_PERSON_ID)
+    : state.interviewees;
+  if (!visiblePeople.length) {
+    elements.peopleGrid.innerHTML =
+      '<p class="history-empty">Este enlace no corresponde a ninguna entrevista. Comprueba con el equipo que te lo envió.</p>';
+    return;
+  }
+  elements.peopleGrid.innerHTML = visiblePeople
     .map(
       (person) => `
         <button class="profile-card${person.id === state.selectedIntervieweeId ? " is-selected" : ""}"
@@ -2652,6 +2665,11 @@ async function initialize() {
     $('[data-settings-tab="generator"]')?.setAttribute("hidden", "");
     elements.globalSynthesisCard.hidden = true;
     elements.startAsyncButton.hidden = true;
+    elements.startPreviewButton.hidden = false;
+  }
+  if (LOCKED_PERSON_ID) {
+    elements.manageProfilesButton.hidden = true;
+    elements.openSettingsButton.hidden = true;
   }
   try {
     await Promise.all([loadConfig(), loadInterviewees(), loadHistory()]);
