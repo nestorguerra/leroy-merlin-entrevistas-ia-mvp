@@ -80,6 +80,9 @@
                   <span>Empezar entrevista</span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
                 </button>
+                <button class="button button--secondary" id="startAsyncButton" type="button" disabled>
+                  Entrevista asíncrona · leer y responder por voz
+                </button>
                 <button class="button button--secondary" id="startPreviewButton" type="button" disabled>
                   Probar el recorrido
                 </button>
@@ -190,6 +193,14 @@
               <div class="live-transcript" id="liveTranscript">
                 <span>Tu respuesta, en curso</span>
                 <p id="liveTranscriptText">Cuando hables, tus palabras aparecerán aquí.</p>
+              </div>
+
+              <div class="record-answer" id="recordAnswerPanel" hidden>
+                <button class="button button--primary record-button" id="recordAnswerButton" type="button">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" /></svg>
+                  <span id="recordAnswerLabel">Grabar respuesta</span>
+                </button>
+                <span class="record-status" id="recordStatus">Pulsa para grabar; puedes grabar varios fragmentos.</span>
               </div>
 
               <div class="manual-answer" id="manualAnswerPanel" hidden>

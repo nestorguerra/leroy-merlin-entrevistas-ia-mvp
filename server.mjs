@@ -28,6 +28,12 @@ const DEFAULT_MODEL = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-1.5";
 const DEFAULT_VOICE = process.env.OPENAI_REALTIME_VOICE || "marin";
 // Modelo de texto para generar guías de entrevista, repreguntas y síntesis de procesos.
 const DEFAULT_TEXT_MODEL = process.env.OPENAI_TEXT_MODEL || "gpt-5.1";
+// Transcripción en servidor para el modo asíncrono (pregunta en texto, respuesta por voz).
+const DEFAULT_TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL || "gpt-4o-transcribe";
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
+const TRANSCRIBE_PROMPT =
+  process.env.OPENAI_TRANSCRIBE_PROMPT ||
+  "Entrevista interna de Leroy Merlin España sobre procesos de marketing. Términos habituales: opecom, OPECOM, PAC, PGC, ALV, HG, hoja de gestión, Com360, COPIL, COPILES, Club, mundos, orquestador, Booster, Gira, Jira, Livia, CDP, Dameo, WLL, LYSE, RCO, toolkit, fast pass, MIM, CEXP, 1P, 3P, ADEO, BigQuery, Colab, Power BI, Looker Studio, UTM, retail media, venta flash, marketplace.";
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
 const ALLOWED_VOICES = new Set([
   "alloy",
@@ -354,7 +360,7 @@ function sanitizeInterviewRecord(body) {
     status: ["in_progress", "completed", "cancelled"].includes(body?.status)
       ? body.status
       : "in_progress",
-    mode: body?.mode === "preview" ? "preview" : "realtime",
+    mode: ["preview", "async"].includes(body?.mode) ? body.mode : "realtime",
     participant: {
       id: cleanString(participant.id, 100),
       name: cleanString(participant.name, 120),
@@ -575,6 +581,64 @@ async function callOpenAIJson({ system, user, maxOutputTokens = 4000, timeoutMs 
     error.statusCode = 502;
     throw error;
   }
+}
+
+async function readRawBody(req, maxBytes) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > maxBytes) {
+      const error = new Error("El audio supera el tamaño máximo permitido (25 MB).");
+      error.statusCode = 413;
+      throw error;
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+async function transcribeAudio(req) {
+  if (!runtimeApiKey) {
+    const error = new Error("Configura primero la clave de OpenAI en Ajustes.");
+    error.statusCode = 409;
+    throw error;
+  }
+  const audio = await readRawBody(req, MAX_AUDIO_BYTES);
+  if (audio.length < 200) {
+    throw validationError("La grabación está vacía o es demasiado corta.");
+  }
+  const contentType = String(req.headers["content-type"] || "audio/webm").split(";")[0];
+  const extension = contentType.includes("mp4")
+    ? "mp4"
+    : contentType.includes("ogg")
+      ? "ogg"
+      : contentType.includes("wav")
+        ? "wav"
+        : "webm";
+
+  const form = new FormData();
+  form.append("file", new Blob([audio], { type: contentType }), `respuesta.${extension}`);
+  form.append("model", DEFAULT_TRANSCRIBE_MODEL);
+  form.append("language", "es");
+  form.append("prompt", TRANSCRIBE_PROMPT);
+
+  const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${runtimeApiKey}` },
+    signal: AbortSignal.timeout(120000),
+    body: form,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(
+      cleanString(payload?.error?.message, 500) ||
+        `OpenAI ha respondido con el código ${response.status}.`,
+    );
+    error.statusCode = response.status >= 500 ? 502 : 400;
+    throw error;
+  }
+  return { text: cleanString(payload?.text, 20000) };
 }
 
 const GENERATOR_SYSTEM_PROMPT = `Eres una consultora experta en mapeo de procesos de negocio y descubrimiento de casos de uso de IA, trabajando como Forward Deployed Engineer en el departamento de Marketing de Leroy Merlin España.
@@ -966,6 +1030,11 @@ async function handleApi(req, res, url) {
     const body = await readJsonBody(req);
     const result = await generateIntervieweeProfile(body);
     return sendJson(res, 200, { ok: true, ...result });
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/transcribe") {
+    const result = await transcribeAudio(req);
+    return sendJson(res, 200, result);
   }
 
   if (req.method === "POST" && url.pathname === "/api/interviews/followup") {

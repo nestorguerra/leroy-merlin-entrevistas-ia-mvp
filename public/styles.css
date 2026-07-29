@@ -2066,6 +2066,45 @@ dialog::backdrop {
   gap: 6px;
 }
 
+.record-answer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.record-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.record-button svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.record-button.is-recording {
+  background: #c0392b;
+  animation: record-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes record-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.35); }
+  50% { box-shadow: 0 0 0 9px rgba(192, 57, 43, 0); }
+}
+
+.record-status {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .privacy-dialog {
   width: min(510px, calc(100vw - 30px));
 }

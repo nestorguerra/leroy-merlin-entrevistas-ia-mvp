@@ -48,6 +48,10 @@ El archivo activo es `data/interviewees.json`. El MVP incluye tres perfiles fict
 
 En **Ajustes → Crear con IA** puedes generar la ficha completa de una persona sin escribir las preguntas a mano. Indica nombre, cargo, área, el proceso a mapear y las dudas concretas que quieres resolver, y la IA diseña entre 12 y 15 preguntas hiperpersonalizadas orientadas a modelar el proceso end to end (pasos, actores, sistemas, tiempos, excepciones y dependencias). El perfil se añade a `data/interviewees.json` y se puede revisar o ajustar como cualquier otro. Requiere la clave de OpenAI configurada; usa el modelo definido en `OPENAI_TEXT_MODEL` (por defecto `gpt-5.1`).
 
+## Entrevista asíncrona (pregunta en texto, respuesta por voz)
+
+El botón **Entrevista asíncrona · leer y responder por voz** inicia el modo pensado para escalar la recogida a muchas personas: la pregunta se muestra en texto (más precisa con la jerga interna y sin coste de voz en tiempo real) y la persona responde hablando. La grabación se hace con el botón **Grabar respuesta** (se pueden grabar varios fragmentos por pregunta, y añadir texto), y se transcribe en el servidor con `gpt-4o-transcribe` usando un glosario de términos internos (opecom, PAC, Com360, HG, Dameo…) para minimizar errores de reconocimiento. El audio no se guarda: solo la transcripción. Las repreguntas de profundización funcionan también en este modo, en texto. Configurable con `OPENAI_TRANSCRIBE_MODEL` y `OPENAI_TRANSCRIBE_PROMPT`.
+
 ## Repreguntas de profundización
 
 Con la opción **Repreguntas de profundización** activada (Ajustes → Voz y modelo), al pulsar «He terminado de responder» la IA valora si a la respuesta le falta información clave para modelar el proceso (pasos, actores, sistemas, frecuencia, tiempos, excepciones). Si es así, la entrevistadora hace una única repregunta antes de avanzar; como máximo una por pregunta. Si la valoración falla o no hay clave configurada, la entrevista continúa con normalidad. En GitHub Pages esta función está desactivada.

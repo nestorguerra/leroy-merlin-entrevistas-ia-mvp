@@ -31,7 +31,12 @@ const elements = {
   voiceTrustLabel: $("#voiceTrustLabel"),
   presenceVoiceLabel: $("#presenceVoiceLabel"),
   startRealtimeButton: $("#startRealtimeButton"),
+  startAsyncButton: $("#startAsyncButton"),
   startPreviewButton: $("#startPreviewButton"),
+  recordAnswerPanel: $("#recordAnswerPanel"),
+  recordAnswerButton: $("#recordAnswerButton"),
+  recordAnswerLabel: $("#recordAnswerLabel"),
+  recordStatus: $("#recordStatus"),
   openSettingsButton: $("#openSettingsButton"),
   manageProfilesButton: $("#manageProfilesButton"),
   settingsDialog: $("#settingsDialog"),
@@ -175,6 +180,10 @@ const state = {
   previewRecognitionDisabled: false,
   previewSpeaking: false,
   previewStopped: false,
+  asyncStream: null,
+  asyncRecorder: null,
+  asyncRecording: false,
+  asyncTranscribing: 0,
   publishedVoiceReady: false,
   voiceUnavailableNotified: false,
   confirmAction: null,
@@ -669,6 +678,7 @@ function updateSelectedPerson() {
 function updateStartButtons() {
   const enabled = Boolean(getSelectedInterviewee() && elements.consentCheckbox.checked);
   elements.startRealtimeButton.disabled = IS_STATIC_DEMO || !enabled;
+  elements.startAsyncButton.disabled = IS_STATIC_DEMO || !enabled;
   elements.startPreviewButton.disabled = !enabled;
 }
 
@@ -936,11 +946,13 @@ function createInterviewPayload(status = state.interviewActive ? "in_progress" :
     durationSeconds: durationSeconds(),
     model: elements.modelSelect.value,
     voice:
-      state.mode === "preview"
-        ? hasPublishedVoice(person)
-          ? "OpenAI Marin · audio IA pre-generado"
-          : "solo texto · voz no disponible"
-        : elements.voiceSelect.value,
+      state.mode === "async"
+        ? "pregunta en texto · respuesta por voz transcrita en servidor"
+        : state.mode === "preview"
+          ? hasPublishedVoice(person)
+            ? "OpenAI Marin · audio IA pre-generado"
+            : "solo texto · voz no disponible"
+          : elements.voiceSelect.value,
   };
 }
 
@@ -1093,10 +1105,14 @@ function resetInterviewState(mode) {
   state.previewCurrentItemId = null;
   state.previewRecognitionDisabled = false;
   state.voiceUnavailableNotified = false;
+  state.asyncRecorder = null;
+  state.asyncRecording = false;
+  state.asyncTranscribing = 0;
   setAssistantResponding(false);
   state.realtimeEventTypes = [];
   elements.muteButton.classList.remove("is-muted");
-  elements.manualAnswerPanel.hidden = mode !== "preview";
+  elements.manualAnswerPanel.hidden = !["preview", "async"].includes(mode);
+  elements.recordAnswerPanel.hidden = mode !== "async";
   elements.controlHint.textContent = ANSWER_GUIDANCE;
   renderInterviewShell();
   startTimer();
@@ -1105,13 +1121,13 @@ function resetInterviewState(mode) {
 async function startInterview(mode) {
   const person = getSelectedInterviewee();
   if (!person || !elements.consentCheckbox.checked) return;
-  if (IS_STATIC_DEMO && mode === "realtime") {
-    showToast("La voz Realtime completa está disponible en la copia local.", "error");
+  if (IS_STATIC_DEMO && ["realtime", "async"].includes(mode)) {
+    showToast("Este modo está disponible en la copia local del MVP.", "error");
     return;
   }
-  if (mode === "realtime" && !state.config.keyConfigured) {
+  if (["realtime", "async"].includes(mode) && !state.config.keyConfigured) {
     openSettings("voice");
-    showToast("Añade la clave de OpenAI para activar la entrevista por voz.", "error");
+    showToast("Añade la clave de OpenAI para activar este modo de entrevista.", "error");
     return;
   }
 
@@ -1121,12 +1137,18 @@ async function startInterview(mode) {
   }
   setLoading(
     true,
-    mode === "realtime" ? "Preparando tu entrevista" : "Preparando la vista previa",
+    mode === "realtime"
+      ? "Preparando tu entrevista"
+      : mode === "async"
+        ? "Preparando tu entrevista asíncrona"
+        : "Preparando la vista previa",
     mode === "realtime"
       ? "Conectando el micrófono, GPT‑Realtime‑1.5 y OpenAI Marin…"
-      : hasPublishedVoice(person)
-        ? "Preparando OpenAI Marin y la transcripción…"
-        : "Preparando la transcripción y el modo de respuesta escrita…",
+      : mode === "async"
+        ? "Preparando el micrófono y la transcripción en servidor…"
+        : hasPublishedVoice(person)
+          ? "Preparando OpenAI Marin y la transcripción…"
+          : "Preparando la transcripción y el modo de respuesta escrita…",
   );
 
   try {
@@ -1134,11 +1156,19 @@ async function startInterview(mode) {
     showScreen("interview");
     setConnectionStatus(
       "live",
-      mode === "realtime" ? "Entrevista en directo" : IS_STATIC_DEMO ? "Demo en curso" : "Vista previa",
+      mode === "realtime"
+        ? "Entrevista en directo"
+        : mode === "async"
+          ? "Entrevista asíncrona"
+          : IS_STATIC_DEMO
+            ? "Demo en curso"
+            : "Vista previa",
     );
 
     if (mode === "realtime") {
       await startRealtimeInterview(person);
+    } else if (mode === "async") {
+      await startAsyncInterview(person);
     } else {
       await startPreviewInterview(person);
     }
@@ -1517,6 +1547,14 @@ async function completeCurrentAnswer() {
     stopPreviewRecognition({ graceful: true });
     await waitForPreviewRecognitionEnd();
     materializePreviewInterim(questionIndex);
+  } else if (state.mode === "async") {
+    stopAsyncRecording();
+    const transcriptionsDone = await waitForAsyncTranscriptions();
+    if (!transcriptionsDone) {
+      restoreAnswerCapture();
+      showToast("Todavía se está transcribiendo tu última grabación. Espera un momento.", "error", 6000);
+      return;
+    }
   } else {
     state.realtime?.setMuted(true);
     await waitForPendingInputTranscripts(6500);
@@ -1666,6 +1704,7 @@ async function beginClosing() {
   } else {
     await speakPreview(`Con esto hemos terminado. Muchas gracias, ${person.name}, por tu tiempo y por todo lo que has compartido. Ahora prepararemos la transcripción para poder trabajar con ella.`, {
       kind: "closing",
+      textOnly: state.mode === "async",
     });
     await finalizeInterview("completed");
   }
@@ -1680,6 +1719,145 @@ async function startPreviewInterview(person) {
   elements.controlHint.textContent = ANSWER_GUIDANCE;
   initializePreviewRecognition();
   speakPreviewQuestion({ intro: true });
+}
+
+async function startAsyncInterview(person) {
+  elements.manualAnswerPanel.hidden = false;
+  elements.recordAnswerPanel.hidden = false;
+  elements.controlHint.textContent = ANSWER_GUIDANCE;
+  if (navigator.mediaDevices?.getUserMedia) {
+    try {
+      state.asyncStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      showToast("Sin acceso al micrófono. Puedes responder por escrito.", "error", 7000);
+    }
+  }
+  await speakPreviewQuestion({ intro: true });
+}
+
+function updateRecordUi() {
+  elements.recordAnswerButton.classList.toggle("is-recording", state.asyncRecording);
+  elements.recordAnswerLabel.textContent = state.asyncRecording
+    ? "Detener grabación"
+    : "Grabar respuesta";
+  if (state.asyncRecording) {
+    elements.recordStatus.textContent = "Grabando… habla con calma y pulsa Detener al acabar.";
+  }
+}
+
+async function startAsyncRecording() {
+  if (
+    state.asyncRecording ||
+    !state.interviewActive ||
+    !state.awaitingAnswer ||
+    state.answerSubmitting ||
+    state.finalizing
+  ) return;
+  if (!window.MediaRecorder) {
+    showToast("Este navegador no permite grabar audio; responde por escrito.", "error");
+    return;
+  }
+  if (!state.asyncStream) {
+    try {
+      state.asyncStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      showToast("No hay acceso al micrófono; responde por escrito.", "error");
+      return;
+    }
+  }
+  const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) =>
+    MediaRecorder.isTypeSupported(type),
+  );
+  const recorder = new MediaRecorder(
+    state.asyncStream,
+    mimeType ? { mimeType } : undefined,
+  );
+  const chunks = [];
+  const questionIndex = state.currentQuestionIndex;
+  recorder.addEventListener("dataavailable", (event) => {
+    if (event.data?.size) chunks.push(event.data);
+  });
+  recorder.addEventListener("stop", () => {
+    state.asyncRecording = false;
+    updateRecordUi();
+    const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+    state.asyncTranscribing += 1;
+    transcribeAsyncBlob(blob, questionIndex).finally(() => {
+      state.asyncTranscribing -= 1;
+      updateAnswerControls();
+    });
+  });
+  recorder.start();
+  state.asyncRecorder = recorder;
+  state.asyncRecording = true;
+  updateRecordUi();
+  setInterviewVisualState("listening", "Grabando tu respuesta");
+}
+
+function stopAsyncRecording() {
+  if (state.asyncRecorder && state.asyncRecorder.state !== "inactive") {
+    try {
+      state.asyncRecorder.stop();
+    } catch {
+      state.asyncRecording = false;
+    }
+  }
+}
+
+function toggleAsyncRecording() {
+  if (state.asyncRecording) stopAsyncRecording();
+  else startAsyncRecording();
+}
+
+async function transcribeAsyncBlob(blob, questionIndex) {
+  if (!blob || blob.size < 1000) {
+    elements.recordStatus.textContent = "La grabación era demasiado corta; prueba de nuevo.";
+    return;
+  }
+  setInterviewVisualState("thinking", "Transcribiendo tu respuesta…");
+  elements.recordStatus.textContent = "Transcribiendo tu respuesta…";
+  try {
+    const response = await fetch("/api/transcribe", {
+      method: "POST",
+      headers: { "Content-Type": blob.type || "audio/webm" },
+      body: blob,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.error || "No se ha podido transcribir la grabación.");
+    }
+    const text = String(payload?.text || "").trim();
+    if (text) {
+      const itemId = `async-${crypto.randomUUID()}`;
+      recordParticipantSegment({
+        transcript: text,
+        itemId,
+        questionIndex,
+        segmentOrder: ensureInputSequence(itemId),
+      });
+    } else {
+      showToast("No se ha entendido la grabación; repítela o escribe la respuesta.", "error");
+    }
+  } catch (error) {
+    showToast(error.message || "No se ha podido transcribir la grabación.", "error", 7000);
+  } finally {
+    elements.recordStatus.textContent = "Pulsa para grabar; puedes grabar varios fragmentos.";
+    if (!state.answerSubmitting && !state.finalizing && state.interviewActive) {
+      setInterviewVisualState("listening", "Tómate tu tiempo · puedes continuar");
+      renderCurrentAnswerDraft();
+    }
+  }
+}
+
+async function waitForAsyncTranscriptions(timeoutMs = 120000) {
+  const deadline = Date.now() + timeoutMs;
+  while (
+    (state.asyncTranscribing > 0 || state.asyncRecording) &&
+    Date.now() < deadline
+  ) {
+    await wait(120);
+  }
+  return state.asyncTranscribing === 0 && !state.asyncRecording;
 }
 
 function initializePreviewRecognition() {
@@ -1888,6 +2066,7 @@ function speakPreviewQuestion({ intro = false, repeat = false } = {}) {
   return speakPreview(text, {
     kind: intro ? "intro" : repeat ? "repeat" : "question",
     questionIndex: state.currentQuestionIndex,
+    textOnly: state.mode === "async",
   });
 }
 
@@ -1915,6 +2094,11 @@ function submitManualAnswer() {
 async function stopActiveVoice() {
   state.previewStopped = true;
   stopPreviewRecognition();
+  stopAsyncRecording();
+  if (state.asyncStream) {
+    for (const track of state.asyncStream.getTracks()) track.stop();
+    state.asyncStream = null;
+  }
   publishedVoice.stop();
   if (state.realtime) {
     await state.realtime.close().catch(() => {});
@@ -1962,6 +2146,9 @@ async function finalizeInterview(status = "completed") {
     stopPreviewRecognition({ graceful: true });
     await waitForPreviewRecognitionEnd();
     materializePreviewInterim(state.currentQuestionIndex);
+  } else if (state.mode === "async") {
+    stopAsyncRecording();
+    await waitForAsyncTranscriptions();
   } else {
     await waitForPendingInputTranscripts();
   }
@@ -2363,7 +2550,9 @@ function startNewInterview() {
 function bindEvents() {
   elements.consentCheckbox.addEventListener("change", updateStartButtons);
   elements.startRealtimeButton.addEventListener("click", () => startInterview("realtime"));
+  elements.startAsyncButton.addEventListener("click", () => startInterview("async"));
   elements.startPreviewButton.addEventListener("click", () => startInterview("preview"));
+  elements.recordAnswerButton.addEventListener("click", toggleAsyncRecording);
   elements.openSettingsButton.addEventListener("click", () => openSettings("voice"));
   elements.manageProfilesButton.addEventListener("click", () => openSettings("people"));
   elements.closeSettingsButton.addEventListener("click", () => closeDialog(elements.settingsDialog));
@@ -2462,6 +2651,7 @@ async function initialize() {
   if (IS_STATIC_DEMO) {
     $('[data-settings-tab="generator"]')?.setAttribute("hidden", "");
     elements.globalSynthesisCard.hidden = true;
+    elements.startAsyncButton.hidden = true;
   }
   try {
     await Promise.all([loadConfig(), loadInterviewees(), loadHistory()]);
