@@ -35,7 +35,9 @@ La clave estándar se guarda solo en `.env.local` y nunca se incluye en el HTML,
 
 ## Cargar personas y preguntas
 
-En **Ajustes → Personas** puedes descargar una plantilla JSON y cargar la lista real. Cada ficha requiere:
+La forma recomendada de cargar la lista real es dejar un fichero **`data/interviewees.local.json`** en la carpeta del proyecto: el servidor lo carga automáticamente al arrancar, tiene prioridad sobre el fichero de demostración y **git lo ignora**, de modo que los nombres y preguntas reales nunca acaban en el repositorio ni en GitHub Pages. La portada muestra un desplegable «¿Quién eres?» con esas personas.
+
+También se puede seguir cargando desde **Ajustes → Personas** (la subida se guarda en el fichero local, no en el del repositorio). Cada ficha requiere:
 
 - nombre, cargo y área;
 - contexto privado para ajustar el tono;

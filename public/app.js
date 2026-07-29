@@ -24,6 +24,8 @@ const elements = {
   interviewScreen: $("#interviewScreen"),
   completeScreen: $("#completeScreen"),
   peopleGrid: $("#peopleGrid"),
+  peopleSection: $("#peopleSection"),
+  personSelect: $("#personSelect"),
   selectedPersonSummary: $("#selectedPersonSummary"),
   selectedPersonInitial: $("#selectedPersonInitial"),
   selectedPersonName: $("#selectedPersonName"),
@@ -600,21 +602,43 @@ async function loadInterviewees({ preserveSelection = true } = {}) {
   state.selectedIntervieweeId =
     state.interviewees.find((person) => person.id === LOCKED_PERSON_ID)?.id ||
     state.interviewees.find((person) => person.id === previousSelection)?.id ||
-    state.interviewees[0]?.id ||
-    null;
+    (state.interviewees.length === 1 ? state.interviewees[0].id : null);
   renderPeople();
   renderSettingsPeople();
   updateSelectedPerson();
 }
 
+function renderPersonSelect(visiblePeople) {
+  if (!visiblePeople.length) {
+    elements.personSelect.innerHTML =
+      '<option value="">Este enlace no corresponde a ninguna entrevista</option>';
+    elements.personSelect.disabled = true;
+    return;
+  }
+  const options = visiblePeople
+    .map(
+      (person) =>
+        `<option value="${escapeHtml(person.id)}"${
+          person.id === state.selectedIntervieweeId ? " selected" : ""
+        }>${escapeHtml(person.fullName)} · ${escapeHtml(person.role)}</option>`,
+    )
+    .join("");
+  elements.personSelect.innerHTML = LOCKED_PERSON_ID
+    ? options
+    : `<option value="">Elige tu nombre…</option>${options}`;
+  elements.personSelect.disabled = Boolean(LOCKED_PERSON_ID);
+}
+
 function renderPeople() {
   if (!state.interviewees.length) {
     elements.peopleGrid.innerHTML = '<p class="history-empty">No hay perfiles cargados.</p>';
+    renderPersonSelect([]);
     return;
   }
   const visiblePeople = LOCKED_PERSON_ID
     ? state.interviewees.filter((person) => person.id === LOCKED_PERSON_ID)
     : state.interviewees;
+  renderPersonSelect(visiblePeople);
   if (!visiblePeople.length) {
     elements.peopleGrid.innerHTML =
       '<p class="history-empty">Este enlace no corresponde a ninguna entrevista. Comprueba con el equipo que te lo envió.</p>';
@@ -2566,6 +2590,13 @@ function bindEvents() {
   elements.startAsyncButton.addEventListener("click", () => startInterview("async"));
   elements.startPreviewButton.addEventListener("click", () => startInterview("preview"));
   elements.recordAnswerButton.addEventListener("click", toggleAsyncRecording);
+  elements.personSelect.addEventListener("change", () => {
+    const id = elements.personSelect.value || null;
+    state.selectedIntervieweeId =
+      state.interviewees.find((person) => person.id === id)?.id || null;
+    renderPeople();
+    updateSelectedPerson();
+  });
   elements.openSettingsButton.addEventListener("click", () => openSettings("voice"));
   elements.manageProfilesButton.addEventListener("click", () => openSettings("people"));
   elements.closeSettingsButton.addEventListener("click", () => closeDialog(elements.settingsDialog));

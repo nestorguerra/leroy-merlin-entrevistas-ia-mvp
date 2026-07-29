@@ -5,6 +5,8 @@ node_modules/
 .DS_Store
 data/interviews/*
 !data/interviews/.gitkeep
+# Personas reales del cliente: nunca al repositorio ni a Pages.
+data/interviewees.local.json
 output/playwright/
 .playwright-cli/
 work/

@@ -18,6 +18,9 @@ const PUBLIC_DIR = join(ROOT, "public");
 const DATA_DIR = join(ROOT, "data");
 const INTERVIEWS_DIR = join(DATA_DIR, "interviews");
 const INTERVIEWEES_FILE = join(DATA_DIR, "interviewees.json");
+// Fichero local con las personas reales: tiene prioridad y git lo ignora,
+// para que los datos del cliente nunca acaben en el repositorio ni en Pages.
+const INTERVIEWEES_LOCAL_FILE = join(DATA_DIR, "interviewees.local.json");
 const TEMPLATE_FILE = join(DATA_DIR, "interviewees.template.json");
 const ENV_FILE = join(ROOT, ".env.local");
 
@@ -651,6 +654,21 @@ Las preguntas deben:
 - resolver explícitamente las dudas pendientes que se indiquen.
 Responde únicamente con un JSON válido.`;
 
+function activeIntervieweesFile() {
+  return existsSync(INTERVIEWEES_LOCAL_FILE) ? INTERVIEWEES_LOCAL_FILE : INTERVIEWEES_FILE;
+}
+
+async function readActiveInterviewees() {
+  return JSON.parse(await readFile(activeIntervieweesFile(), "utf8"));
+}
+
+async function writeLocalInterviewees(interviewees) {
+  await writeFileAtomic(
+    INTERVIEWEES_LOCAL_FILE,
+    `${JSON.stringify(interviewees, null, 2)}\n`,
+  );
+}
+
 async function generateIntervieweeProfile(body) {
   const fullName = cleanString(body?.fullName, 120);
   const role = cleanString(body?.role, 160);
@@ -703,12 +721,12 @@ async function generateIntervieweeProfile(body) {
     questions,
   };
 
-  const current = JSON.parse(await readFile(INTERVIEWEES_FILE, "utf8"));
+  const current = await readActiveInterviewees();
   const existingIndex = current.findIndex((person) => person?.id === candidate.id);
   if (existingIndex >= 0) current[existingIndex] = candidate;
   else current.push(candidate);
   const interviewees = validateInterviewees(current);
-  await writeFileAtomic(INTERVIEWEES_FILE, `${JSON.stringify(interviewees, null, 2)}\n`);
+  await writeLocalInterviewees(interviewees);
   return { interviewee: candidate, interviewees };
 }
 
@@ -999,7 +1017,7 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/interviewees") {
-    const raw = JSON.parse(await readFile(INTERVIEWEES_FILE, "utf8"));
+    const raw = await readActiveInterviewees();
     return sendJson(res, 200, { interviewees: validateInterviewees(raw) });
   }
 
@@ -1007,9 +1025,7 @@ async function handleApi(req, res, url) {
     if (!requireLoopback(req, res)) return;
     const body = await readJsonBody(req);
     const interviewees = validateInterviewees(body?.interviewees);
-    const temporary = `${INTERVIEWEES_FILE}.${randomUUID()}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(interviewees, null, 2)}\n`, "utf8");
-    await rename(temporary, INTERVIEWEES_FILE);
+    await writeLocalInterviewees(interviewees);
     return sendJson(res, 200, { ok: true, count: interviewees.length, interviewees });
   }
 

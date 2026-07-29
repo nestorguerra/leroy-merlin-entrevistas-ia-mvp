@@ -55,6 +55,13 @@
                 Sin formularios. Sin respuestas prefabricadas. Solo una conversación.
               </p>
 
+              <div class="person-select-group">
+                <label for="personSelect">¿Quién eres?</label>
+                <select id="personSelect" class="person-select">
+                  <option value="">Cargando personas…</option>
+                </select>
+              </div>
+
               <div class="selected-person" id="selectedPersonSummary" aria-live="polite">
                 <div class="selected-person__avatar" id="selectedPersonInitial">C</div>
                 <div>
@@ -120,7 +127,7 @@
             </div>
           </div>
 
-          <div class="people-section">
+          <div class="people-section" id="peopleSection" hidden>
             <div class="section-heading">
               <div>
                 <span>¿Quién eres?</span>
