@@ -44,6 +44,21 @@ En **Ajustes → Personas** puedes descargar una plantilla JSON y cargar la list
 
 El archivo activo es `data/interviewees.json`. El MVP incluye tres perfiles ficticios para probar Operaciones, Datos y Personas.
 
+## Crear entrevistas personalizadas con IA
+
+En **Ajustes → Crear con IA** puedes generar la ficha completa de una persona sin escribir las preguntas a mano. Indica nombre, cargo, área, el proceso a mapear y las dudas concretas que quieres resolver, y la IA diseña entre 12 y 15 preguntas hiperpersonalizadas orientadas a modelar el proceso end to end (pasos, actores, sistemas, tiempos, excepciones y dependencias). El perfil se añade a `data/interviewees.json` y se puede revisar o ajustar como cualquier otro. Requiere la clave de OpenAI configurada; usa el modelo definido en `OPENAI_TEXT_MODEL` (por defecto `gpt-5.1`).
+
+## Repreguntas de profundización
+
+Con la opción **Repreguntas de profundización** activada (Ajustes → Voz y modelo), al pulsar «He terminado de responder» la IA valora si a la respuesta le falta información clave para modelar el proceso (pasos, actores, sistemas, frecuencia, tiempos, excepciones). Si es así, la entrevistadora hace una única repregunta antes de avanzar; como máximo una por pregunta. Si la valoración falla o no hay clave configurada, la entrevista continúa con normalidad. En GitHub Pages esta función está desactivada.
+
+## Modelado de procesos
+
+Desde **Ajustes → Historial**:
+
+- **Modelar proceso** convierte una entrevista en un modelo estructurado: resumen ejecutivo, tabla de pasos (actividad, actor, sistemas, entradas/salidas, frecuencia, duración, carga manual), dolores con citas textuales, oportunidades de IA/automatización clasificadas por impacto y esfuerzo, dependencias entre equipos, preguntas abiertas para el shadowing y un diagrama Mermaid del flujo. Se guarda como `data/interviews/<id>.proceso.md` y `.proceso.json`.
+- **Generar síntesis global** combina todos los modelos individuales en una visión transversal de la cadena de valor: fases, dolores comunes, portafolio priorizado de oportunidades, contradicciones entre personas y recomendaciones para el shadowing. Se guarda como `data/interviews/sintesis-global.md` y `.json`.
+
 ## Resultados
 
 Cada turno se guarda automáticamente en:

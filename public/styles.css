@@ -1986,6 +1986,86 @@ dialog::backdrop {
   font-weight: 600;
 }
 
+.history-item__links .text-action {
+  font-size: 10px;
+}
+
+.history-item__links .text-action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.field-group textarea {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  color: var(--ink);
+  background: var(--paper);
+  outline: 0;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.field-group textarea:focus {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 2px rgba(11, 150, 204, 0.13);
+}
+
+.checkbox-inline {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.checkbox-inline input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--lm-green, #6ab023);
+}
+
+.generator-form .button {
+  margin-top: 18px;
+}
+
+.global-synthesis {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  margin-top: 22px;
+  padding: 16px;
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
+}
+
+.global-synthesis > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.global-synthesis strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.global-synthesis span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.global-synthesis .history-item__links {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
 .privacy-dialog {
   width: min(510px, calc(100vw - 30px));
 }

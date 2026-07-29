@@ -313,6 +313,7 @@
         <div class="settings-tabs" role="tablist">
           <button class="is-active" type="button" role="tab" data-settings-tab="voice">Voz y modelo</button>
           <button type="button" role="tab" data-settings-tab="people">Personas</button>
+          <button type="button" role="tab" data-settings-tab="generator">Crear con IA</button>
           <button type="button" role="tab" data-settings-tab="history">Historial</button>
         </div>
 
@@ -365,10 +366,76 @@
               </div>
             </div>
 
+            <div class="field-group">
+              <label class="checkbox-inline" for="followupToggle">
+                <input id="followupToggle" type="checkbox" checked />
+                Repreguntas de profundización (máximo una por pregunta)
+              </label>
+              <p>
+                Al terminar cada respuesta, la IA valora si falta información clave para modelar el proceso y, si es así, hace una única repregunta antes de avanzar.
+              </p>
+            </div>
+
             <div class="info-note">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
               <p>
                 Marin es una voz generada por inteligencia artificial. En modo Realtime, OpenAI procesa temporalmente el audio y los datos necesarios para personalizar las preguntas. El audio no se guarda en este MVP.
+              </p>
+            </div>
+          </section>
+
+          <section class="settings-panel" data-settings-panel="generator">
+            <div class="history-heading">
+              <h3>Crear una entrevista personalizada</h3>
+              <span>La IA diseña entre 12 y 15 preguntas a medida</span>
+            </div>
+            <form class="generator-form" id="generatorForm">
+              <div class="settings-two-columns">
+                <div class="field-group">
+                  <label for="generatorName">Nombre y apellidos</label>
+                  <input id="generatorName" type="text" autocomplete="off" placeholder="Nombre Apellido" required />
+                </div>
+                <div class="field-group">
+                  <label for="generatorRole">Cargo</label>
+                  <input id="generatorRole" type="text" autocomplete="off" placeholder="Responsable de CRM" required />
+                </div>
+              </div>
+              <div class="settings-two-columns">
+                <div class="field-group">
+                  <label for="generatorArea">Área</label>
+                  <input id="generatorArea" type="text" autocomplete="off" placeholder="Marketing" />
+                </div>
+                <div class="field-group">
+                  <label for="generatorDuration">Duración orientativa (15-30 min)</label>
+                  <input id="generatorDuration" type="number" min="15" max="30" value="20" />
+                </div>
+              </div>
+              <div class="field-group">
+                <label for="generatorProcess">Proceso o ámbito de trabajo a mapear</label>
+                <textarea
+                  id="generatorProcess"
+                  rows="4"
+                  placeholder="Ej.: segmentación de audiencias y envío de campañas de email; desde la petición de negocio hasta la medición del retorno."
+                  required
+                ></textarea>
+              </div>
+              <div class="field-group">
+                <label for="generatorObjectives">Dudas concretas que queremos resolver (opcional)</label>
+                <textarea
+                  id="generatorObjectives"
+                  rows="3"
+                  placeholder="Ej.: ¿quién valida las audiencias?, ¿cuánto tarda la extracción de datos?, ¿qué pasos son manuales?"
+                ></textarea>
+              </div>
+              <button class="button button--primary button--compact" id="generateProfileButton" type="submit">
+                Generar entrevista con IA
+              </button>
+              <span class="upload-feedback" id="generatorFeedback"></span>
+            </form>
+            <div class="info-note">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
+              <p>
+                El perfil se añade a la lista de Personas y las preguntas se pueden revisar o ajustar descargando y volviendo a cargar el JSON. Requiere la clave de OpenAI configurada.
               </p>
             </div>
           </section>
@@ -407,6 +474,18 @@
             </div>
             <div class="history-list" id="historyList">
               <div class="history-empty">Todavía no hay entrevistas guardadas.</div>
+            </div>
+            <div class="global-synthesis" id="globalSynthesisCard">
+              <div>
+                <strong>Síntesis global de procesos</strong>
+                <span>Combina los modelos individuales en una visión end to end de la cadena de valor.</span>
+              </div>
+              <div class="history-item__links">
+                <button class="button button--primary button--compact" id="globalSynthesisButton" type="button">
+                  Generar síntesis global
+                </button>
+                <a id="globalSynthesisDownload" href="/api/synthesis/global/export?format=md" download hidden>Descargar MD</a>
+              </div>
             </div>
           </section>
         </div>

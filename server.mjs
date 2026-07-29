@@ -26,6 +26,8 @@ const HOST = "127.0.0.1";
 const PORT = Number(process.env.PORT || 4177);
 const DEFAULT_MODEL = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-1.5";
 const DEFAULT_VOICE = process.env.OPENAI_REALTIME_VOICE || "marin";
+// Modelo de texto para generar guías de entrevista, repreguntas y síntesis de procesos.
+const DEFAULT_TEXT_MODEL = process.env.OPENAI_TEXT_MODEL || "gpt-5.1";
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
 const ALLOWED_VOICES = new Set([
   "alloy",
@@ -500,7 +502,9 @@ async function saveInterview(body) {
 }
 
 async function listInterviewSummaries() {
-  const files = (await readdir(INTERVIEWS_DIR)).filter((file) => file.endsWith(".json"));
+  const files = (await readdir(INTERVIEWS_DIR)).filter(
+    (file) => /^[a-f0-9-]{36}\.json$/i.test(file),
+  );
   const summaries = [];
   for (const file of files.slice(-100)) {
     try {
@@ -512,12 +516,384 @@ async function listInterviewSummaries() {
         status: record.status,
         startedAt: record.startedAt,
         updatedAt: record.updatedAt,
+        hasSynthesis: existsSync(join(INTERVIEWS_DIR, `${record.sessionId}.proceso.json`)),
       });
     } catch {
       // Un archivo incompleto no debe romper el listado completo.
     }
   }
   return summaries.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+}
+
+// ---------------------------------------------------------------------------
+// Capa de IA generativa: guías de entrevista, repreguntas y síntesis de procesos.
+// Todas las llamadas usan la misma clave local y nunca exponen datos a la web pública.
+// ---------------------------------------------------------------------------
+
+async function callOpenAIJson({ system, user, maxOutputTokens = 4000, timeoutMs = 120000 }) {
+  if (!runtimeApiKey) {
+    const error = new Error("Configura primero la clave de OpenAI en Ajustes.");
+    error.statusCode = 409;
+    throw error;
+  }
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${runtimeApiKey}`,
+      "Content-Type": "application/json",
+    },
+    signal: AbortSignal.timeout(timeoutMs),
+    body: JSON.stringify({
+      model: DEFAULT_TEXT_MODEL,
+      response_format: { type: "json_object" },
+      max_completion_tokens: maxOutputTokens,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(
+      cleanString(payload?.error?.message, 500) ||
+        `OpenAI ha respondido con el código ${response.status}.`,
+    );
+    error.statusCode = response.status >= 500 ? 502 : 400;
+    throw error;
+  }
+  const content = payload?.choices?.[0]?.message?.content;
+  if (!content) {
+    const error = new Error("OpenAI no ha devuelto contenido utilizable.");
+    error.statusCode = 502;
+    throw error;
+  }
+  try {
+    return JSON.parse(content);
+  } catch {
+    const error = new Error("La respuesta de OpenAI no es un JSON válido.");
+    error.statusCode = 502;
+    throw error;
+  }
+}
+
+const GENERATOR_SYSTEM_PROMPT = `Eres una consultora experta en mapeo de procesos de negocio y descubrimiento de casos de uso de IA, trabajando como Forward Deployed Engineer en el departamento de Marketing de Leroy Merlin España.
+Diseñas guías de entrevista en español de España para entender de principio a fin cómo trabaja una persona concreta: sus actividades, herramientas, dependencias, tiempos, dolores y oportunidades de automatización.
+Las preguntas deben:
+- estar hiperpersonalizadas al cargo, área y proceso descritos;
+- ser abiertas, conversacionales y formuladas de tú a tú;
+- cubrir el proceso end to end: disparadores, pasos, actores, sistemas, entradas y salidas, tiempos, excepciones, métricas y dependencias entre equipos;
+- incluir al menos una pregunta sobre carga manual repetitiva, una sobre datos y herramientas, una sobre qué debería seguir siendo humano y una de cierre orientada a resultados;
+- resolver explícitamente las dudas pendientes que se indiquen.
+Responde únicamente con un JSON válido.`;
+
+async function generateIntervieweeProfile(body) {
+  const fullName = cleanString(body?.fullName, 120);
+  const role = cleanString(body?.role, 160);
+  const area = cleanString(body?.area, 80);
+  const processDescription = cleanString(body?.processDescription, 4000);
+  const objectives = cleanString(body?.objectives, 2000);
+  const durationMinutes = Math.max(15, Math.min(30, Number(body?.durationMinutes) || 20));
+  if (!fullName || !role || !processDescription) {
+    throw validationError("Indica al menos nombre, cargo y una descripción del proceso a mapear.");
+  }
+
+  const user = [
+    `Persona a entrevistar: ${fullName}`,
+    `Cargo: ${role}`,
+    area ? `Área: ${area}` : "",
+    `Duración orientativa: ${durationMinutes} minutos`,
+    `Proceso o ámbito de trabajo a mapear:\n${processDescription}`,
+    objectives ? `Dudas y objetivos concretos que la entrevista debe resolver:\n${objectives}` : "",
+    "",
+    'Devuelve un JSON con esta forma exacta: {"context": "resumen privado de 2-4 frases para que la entrevistadora ajuste el tono y sepa qué buscar", "questions": ["...", "..."]} con entre 12 y 15 preguntas ordenadas de apertura a cierre.',
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const generated = await callOpenAIJson({
+    system: GENERATOR_SYSTEM_PROMPT,
+    user,
+    maxOutputTokens: 6000,
+  });
+
+  const questions = Array.isArray(generated?.questions)
+    ? generated.questions.map((question) => cleanString(question, 800)).filter(Boolean)
+    : [];
+  if (questions.length < 12 || questions.length > 15) {
+    throw validationError(
+      `La IA ha devuelto ${questions.length} preguntas y deben ser entre 12 y 15. Vuelve a intentarlo.`,
+    );
+  }
+
+  const name = fullName.split(/\s+/)[0] || fullName;
+  const candidate = {
+    id: slugify(fullName),
+    name,
+    fullName,
+    role,
+    area: area || "Marketing",
+    durationMinutes,
+    isDemo: false,
+    context: cleanString(generated?.context, 1200) || processDescription.slice(0, 1200),
+    questions,
+  };
+
+  const current = JSON.parse(await readFile(INTERVIEWEES_FILE, "utf8"));
+  const existingIndex = current.findIndex((person) => person?.id === candidate.id);
+  if (existingIndex >= 0) current[existingIndex] = candidate;
+  else current.push(candidate);
+  const interviewees = validateInterviewees(current);
+  await writeFileAtomic(INTERVIEWEES_FILE, `${JSON.stringify(interviewees, null, 2)}\n`);
+  return { interviewee: candidate, interviewees };
+}
+
+const FOLLOWUP_SYSTEM_PROMPT = `Eres el motor de repreguntas de una entrevista para mapear procesos de trabajo en Leroy Merlin España.
+Recibes una pregunta y la respuesta de la persona. Decide si merece la pena UNA única repregunta breve de profundización para poder modelar bien el proceso.
+Solo repregunta si falta información clave: qué pasos concretos sigue, quién interviene, qué herramientas o sistemas usa, con qué frecuencia, cuánto tiempo lleva, qué entradas y salidas tiene o qué pasa cuando algo falla.
+Si la respuesta ya es razonablemente concreta, si es personal u opinativa, o si la persona ha preferido no extenderse, NO repreguntes.
+La repregunta debe ser natural, en español de España, de tú a tú, de una sola frase y sin sonar a interrogatorio.
+Responde únicamente con JSON: {"necesitaRepregunta": true|false, "repregunta": "texto o cadena vacía"}.`;
+
+async function generateFollowup(body) {
+  const question = cleanString(body?.question, 800);
+  const answer = cleanString(body?.answer, 8000);
+  const role = cleanString(body?.role, 160);
+  const area = cleanString(body?.area, 80);
+  if (!question || !answer) {
+    throw validationError("Faltan la pregunta o la respuesta para valorar la repregunta.");
+  }
+  const result = await callOpenAIJson({
+    system: FOLLOWUP_SYSTEM_PROMPT,
+    user: `Persona entrevistada: ${role || "sin cargo indicado"}${area ? ` · ${area}` : ""}\nPregunta: ${question}\nRespuesta: ${answer}`,
+    maxOutputTokens: 1200,
+    timeoutMs: 45000,
+  });
+  const followup = cleanString(result?.repregunta, 500);
+  return {
+    followup: result?.necesitaRepregunta && followup ? followup : null,
+  };
+}
+
+const SYNTHESIS_SYSTEM_PROMPT = `Eres una consultora experta en modelado de procesos (BPM) y descubrimiento de casos de uso de IA generativa dentro del área de Marketing de Leroy Merlin España.
+A partir de la transcripción de una entrevista, construyes un modelo estructurado del proceso descrito por la persona.
+Sé fiel a lo dicho: no inventes pasos ni sistemas que no se mencionen. Lo que no quede claro va a "preguntasAbiertas".
+El campo "mermaid" debe contener un diagrama "flowchart TD" válido de Mermaid (sin fences de código), con los pasos principales del proceso, decisiones si las hay, y los actores entre corchetes en las etiquetas. Usa identificadores simples (P1, P2, D1...) y etiquetas entre comillas dobles.
+Responde únicamente con un JSON válido con esta forma:
+{
+  "resumenEjecutivo": "5-8 frases",
+  "pasos": [{"orden": 1, "actividad": "", "actor": "", "sistemas": [""], "entradas": "", "salidas": "", "frecuencia": "", "duracionEstimada": "", "esManual": true}],
+  "dolores": [{"descripcion": "", "impacto": "alto|medio|bajo", "cita": "cita textual breve de la persona"}],
+  "oportunidades": [{"titulo": "", "descripcion": "", "tipo": "ia_generativa|automatizacion|datos|proceso", "impacto": "alto|medio|bajo", "esfuerzo": "alto|medio|bajo"}],
+  "sistemas": [""],
+  "dependencias": ["equipo o rol del que depende y para qué"],
+  "preguntasAbiertas": [""],
+  "mermaid": "flowchart TD..."
+}`;
+
+function interviewToQaText(record) {
+  const lines = [
+    `Entrevista a ${record.participant.fullName || record.participant.name || "persona sin nombre"}`,
+    `Cargo: ${record.participant.role || "no indicado"} · Área: ${record.participant.area || "no indicada"}`,
+    "",
+  ];
+  const participantEntries = record.transcript.filter(
+    (entry) => entry.speaker === "participant",
+  );
+  record.questions.forEach((question, index) => {
+    lines.push(`PREGUNTA ${index + 1}: ${question}`);
+    const answers = participantEntries
+      .filter((entry) => entry.questionIndex === index)
+      .map((entry) => entry.text);
+    lines.push(`RESPUESTA: ${answers.length ? answers.join(" ") : "(sin respuesta)"}`, "");
+  });
+  return lines.join("\n");
+}
+
+function synthesisToMarkdown(record, synthesis) {
+  const title = record.participant.fullName || record.participant.name || "Entrevista";
+  const lines = [
+    `# Modelo de proceso · ${title}`,
+    "",
+    `- Cargo: ${record.participant.role || "No indicado"}`,
+    `- Área: ${record.participant.area || "No indicada"}`,
+    `- Entrevista: ${record.startedAt}`,
+    `- Generado: ${new Date().toISOString()}`,
+    "",
+    "## Resumen ejecutivo",
+    "",
+    synthesis.resumenEjecutivo || "_Sin resumen._",
+    "",
+    "## Diagrama del proceso",
+    "",
+    "```mermaid",
+    synthesis.mermaid || "flowchart TD\n  A[\"Sin datos suficientes\"]",
+    "```",
+    "",
+    "## Pasos del proceso",
+    "",
+    "| # | Actividad | Actor | Sistemas | Entradas | Salidas | Frecuencia | Duración | Manual |",
+    "|---|-----------|-------|----------|----------|---------|------------|----------|--------|",
+  ];
+  for (const paso of synthesis.pasos || []) {
+    lines.push(
+      `| ${paso.orden ?? ""} | ${paso.actividad ?? ""} | ${paso.actor ?? ""} | ${(paso.sistemas || []).join(", ")} | ${paso.entradas ?? ""} | ${paso.salidas ?? ""} | ${paso.frecuencia ?? ""} | ${paso.duracionEstimada ?? ""} | ${paso.esManual ? "Sí" : "No"} |`,
+    );
+  }
+  lines.push("", "## Dolores detectados", "");
+  for (const dolor of synthesis.dolores || []) {
+    lines.push(`- **[${dolor.impacto || "?"}]** ${dolor.descripcion}${dolor.cita ? ` — «${dolor.cita}»` : ""}`);
+  }
+  lines.push("", "## Oportunidades de IA y automatización", "");
+  for (const opp of synthesis.oportunidades || []) {
+    lines.push(
+      `- **${opp.titulo}** (${opp.tipo || "?"} · impacto ${opp.impacto || "?"} · esfuerzo ${opp.esfuerzo || "?"}): ${opp.descripcion}`,
+    );
+  }
+  lines.push("", "## Sistemas mencionados", "");
+  lines.push((synthesis.sistemas || []).map((s) => `- ${s}`).join("\n") || "_Ninguno._");
+  lines.push("", "## Dependencias entre equipos", "");
+  lines.push((synthesis.dependencias || []).map((d) => `- ${d}`).join("\n") || "_Ninguna._");
+  lines.push("", "## Preguntas abiertas para el shadowing", "");
+  lines.push((synthesis.preguntasAbiertas || []).map((q) => `- ${q}`).join("\n") || "_Ninguna._");
+  return `${lines.join("\n").trim()}\n`;
+}
+
+async function synthesizeInterview(sessionId) {
+  const jsonPath = join(INTERVIEWS_DIR, `${sessionId}.json`);
+  if (!existsSync(jsonPath)) {
+    throw validationError("No existe esa entrevista.");
+  }
+  const record = JSON.parse(await readFile(jsonPath, "utf8"));
+  const answered = record.transcript?.filter((entry) => entry.speaker === "participant") || [];
+  if (!answered.length) {
+    throw validationError("La entrevista no tiene todavía respuestas que sintetizar.");
+  }
+  const synthesis = await callOpenAIJson({
+    system: SYNTHESIS_SYSTEM_PROMPT,
+    user: interviewToQaText(record),
+    maxOutputTokens: 12000,
+    timeoutMs: 180000,
+  });
+  const stored = {
+    version: 1,
+    sessionId,
+    participant: record.participant,
+    generatedAt: new Date().toISOString(),
+    model: DEFAULT_TEXT_MODEL,
+    synthesis,
+  };
+  const base = join(INTERVIEWS_DIR, sessionId);
+  await Promise.all([
+    writeFileAtomic(`${base}.proceso.json`, `${JSON.stringify(stored, null, 2)}\n`),
+    writeFileAtomic(`${base}.proceso.md`, synthesisToMarkdown(record, synthesis)),
+  ]);
+  return stored;
+}
+
+const GLOBAL_SYNTHESIS_SYSTEM_PROMPT = `Eres una consultora experta en modelado de procesos y estrategia de IA generativa para el área de Marketing de Leroy Merlin España.
+Recibes los modelos de proceso individuales extraídos de varias entrevistas. Construye una síntesis transversal para el equipo del proyecto.
+Sé fiel a los datos: no inventes. Señala contradicciones entre personas cuando existan.
+Responde únicamente con un JSON válido con esta forma:
+{
+  "resumenEjecutivo": "8-12 frases sobre la cadena de valor completa",
+  "cadenaDeValor": [{"fase": "", "descripcion": "", "personasImplicadas": [""], "dolorPrincipal": ""}],
+  "doloresComunes": [{"descripcion": "", "personasAfectadas": [""], "impacto": "alto|medio|bajo"}],
+  "portafolioOportunidades": [{"titulo": "", "descripcion": "", "tipo": "ia_generativa|automatizacion|datos|proceso", "impacto": "alto|medio|bajo", "esfuerzo": "alto|medio|bajo", "prioridad": 1}],
+  "contradicciones": [""],
+  "recomendacionesShadowing": [""],
+  "mermaid": "flowchart LR con la cadena de valor end to end (sin fences de código, etiquetas entre comillas dobles)"
+}`;
+
+function globalSynthesisToMarkdown(payload) {
+  const s = payload.synthesis;
+  const lines = [
+    "# Síntesis global · Marketing Activation con IA",
+    "",
+    `- Entrevistas analizadas: ${payload.sources.map((source) => source.name).join(", ")}`,
+    `- Generado: ${payload.generatedAt}`,
+    "",
+    "## Resumen ejecutivo",
+    "",
+    s.resumenEjecutivo || "_Sin resumen._",
+    "",
+    "## Cadena de valor",
+    "",
+    "```mermaid",
+    s.mermaid || "flowchart LR\n  A[\"Sin datos suficientes\"]",
+    "```",
+    "",
+  ];
+  for (const fase of s.cadenaDeValor || []) {
+    lines.push(`### ${fase.fase}`, "", fase.descripcion || "", "");
+    if (fase.personasImplicadas?.length) lines.push(`- Personas: ${fase.personasImplicadas.join(", ")}`);
+    if (fase.dolorPrincipal) lines.push(`- Dolor principal: ${fase.dolorPrincipal}`);
+    lines.push("");
+  }
+  lines.push("## Dolores comunes", "");
+  for (const dolor of s.doloresComunes || []) {
+    lines.push(`- **[${dolor.impacto || "?"}]** ${dolor.descripcion} (${(dolor.personasAfectadas || []).join(", ")})`);
+  }
+  lines.push("", "## Portafolio de oportunidades (priorizado)", "");
+  const sorted = [...(s.portafolioOportunidades || [])].sort(
+    (a, b) => (a.prioridad ?? 99) - (b.prioridad ?? 99),
+  );
+  for (const opp of sorted) {
+    lines.push(
+      `${opp.prioridad ?? "-"}. **${opp.titulo}** (${opp.tipo || "?"} · impacto ${opp.impacto || "?"} · esfuerzo ${opp.esfuerzo || "?"}): ${opp.descripcion}`,
+    );
+  }
+  lines.push("", "## Contradicciones a contrastar", "");
+  lines.push((s.contradicciones || []).map((c) => `- ${c}`).join("\n") || "_Ninguna._");
+  lines.push("", "## Recomendaciones para el shadowing", "");
+  lines.push((s.recomendacionesShadowing || []).map((r) => `- ${r}`).join("\n") || "_Ninguna._");
+  return `${lines.join("\n").trim()}\n`;
+}
+
+async function synthesizeGlobal() {
+  const files = (await readdir(INTERVIEWS_DIR)).filter((file) => file.endsWith(".proceso.json"));
+  if (!files.length) {
+    throw validationError(
+      "Todavía no hay modelos de proceso individuales. Genera primero al menos uno desde el historial.",
+    );
+  }
+  const sources = [];
+  const chunks = [];
+  for (const file of files.slice(-30)) {
+    try {
+      const stored = JSON.parse(await readFile(join(INTERVIEWS_DIR, file), "utf8"));
+      sources.push({
+        sessionId: stored.sessionId,
+        name: stored.participant?.fullName || stored.participant?.name || file,
+      });
+      chunks.push(
+        `=== ${stored.participant?.fullName || "Persona"} (${stored.participant?.role || ""}) ===\n${JSON.stringify(stored.synthesis)}`,
+      );
+    } catch {
+      // Un modelo dañado no debe romper la síntesis global.
+    }
+  }
+  const synthesis = await callOpenAIJson({
+    system: GLOBAL_SYNTHESIS_SYSTEM_PROMPT,
+    user: chunks.join("\n\n"),
+    maxOutputTokens: 16000,
+    timeoutMs: 240000,
+  });
+  const payload = {
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    model: DEFAULT_TEXT_MODEL,
+    sources,
+    synthesis,
+  };
+  await Promise.all([
+    writeFileAtomic(
+      join(INTERVIEWS_DIR, "sintesis-global.json"),
+      `${JSON.stringify(payload, null, 2)}\n`,
+    ),
+    writeFileAtomic(join(INTERVIEWS_DIR, "sintesis-global.md"), globalSynthesisToMarkdown(payload)),
+  ]);
+  return payload;
 }
 
 async function handleApi(req, res, url) {
@@ -580,6 +956,85 @@ async function handleApi(req, res, url) {
       "Content-Type": "application/json; charset=utf-8",
       "Content-Disposition": 'attachment; filename="plantilla-personas-preguntas.json"',
       "Content-Length": Buffer.byteLength(content),
+      "Cache-Control": "no-store",
+    });
+    return res.end(content);
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/interviewees/generate") {
+    if (!requireLoopback(req, res)) return;
+    const body = await readJsonBody(req);
+    const result = await generateIntervieweeProfile(body);
+    return sendJson(res, 200, { ok: true, ...result });
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/interviews/followup") {
+    const body = await readJsonBody(req);
+    const result = await generateFollowup(body);
+    return sendJson(res, 200, result);
+  }
+
+  const synthesisMatch = url.pathname.match(
+    /^\/api\/interviews\/([a-f0-9-]{36})\/synthesis$/i,
+  );
+  if (req.method === "POST" && synthesisMatch) {
+    if (!requireLoopback(req, res)) return;
+    const stored = await synthesizeInterview(synthesisMatch[1]);
+    return sendJson(res, 200, {
+      ok: true,
+      sessionId: stored.sessionId,
+      exports: {
+        markdown: `/api/interviews/${stored.sessionId}/synthesis/export?format=md`,
+        json: `/api/interviews/${stored.sessionId}/synthesis/export?format=json`,
+      },
+    });
+  }
+
+  const synthesisExportMatch = url.pathname.match(
+    /^\/api\/interviews\/([a-f0-9-]{36})\/synthesis\/export$/i,
+  );
+  if (req.method === "GET" && synthesisExportMatch) {
+    const format = url.searchParams.get("format") === "json" ? "json" : "md";
+    const path = join(INTERVIEWS_DIR, `${synthesisExportMatch[1]}.proceso.${format}`);
+    if (!existsSync(path)) {
+      return sendJson(res, 404, { error: "Esa entrevista no tiene todavía modelo de proceso." });
+    }
+    const content = await readFile(path);
+    setSecurityHeaders(res);
+    res.writeHead(200, {
+      "Content-Type": MIME_TYPES[`.${format}`] || "application/octet-stream",
+      "Content-Disposition": `attachment; filename="proceso-${synthesisExportMatch[1]}.${format}"`,
+      "Content-Length": content.length,
+      "Cache-Control": "no-store",
+    });
+    return res.end(content);
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/synthesis/global") {
+    if (!requireLoopback(req, res)) return;
+    const payload = await synthesizeGlobal();
+    return sendJson(res, 200, {
+      ok: true,
+      sources: payload.sources,
+      exports: {
+        markdown: "/api/synthesis/global/export?format=md",
+        json: "/api/synthesis/global/export?format=json",
+      },
+    });
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/synthesis/global/export") {
+    const format = url.searchParams.get("format") === "json" ? "json" : "md";
+    const path = join(INTERVIEWS_DIR, `sintesis-global.${format}`);
+    if (!existsSync(path)) {
+      return sendJson(res, 404, { error: "Todavía no se ha generado la síntesis global." });
+    }
+    const content = await readFile(path);
+    setSecurityHeaders(res);
+    res.writeHead(200, {
+      "Content-Type": MIME_TYPES[`.${format}`] || "application/octet-stream",
+      "Content-Disposition": `attachment; filename="sintesis-global.${format}"`,
+      "Content-Length": content.length,
       "Cache-Control": "no-store",
     });
     return res.end(content);
