@@ -100,6 +100,10 @@ npm run generate:voice -- --concurrency=3
 
 La clave se lee solo desde el entorno local y nunca se escribe en el manifiesto.
 
+## Despliegue en Google Cloud Run
+
+El MVP puede publicarse para que cada persona responda desde su equipo con su enlace personal. Ver **[DEPLOY.md](DEPLOY.md)**: modo público con tokens (participante y administración), volumen persistente en Cloud Storage y comandos `gcloud` completos. En local nada cambia: sin `PUBLIC_MODE=1`, el servidor sigue restringido a 127.0.0.1.
+
 ## Privacidad del MVP
 
 - En el modo local Realtime, el audio viaja en tiempo real a OpenAI para mantener la conversación.

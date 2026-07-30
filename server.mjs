@@ -15,18 +15,29 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const PUBLIC_DIR = join(ROOT, "public");
-const DATA_DIR = join(ROOT, "data");
+const REPO_DATA_DIR = join(ROOT, "data");
+// En despliegue, DATA_DIR apunta a un volumen persistente (p. ej. GCS en Cloud Run).
+const DATA_DIR = process.env.DATA_DIR || REPO_DATA_DIR;
 const INTERVIEWS_DIR = join(DATA_DIR, "interviews");
-const INTERVIEWEES_FILE = join(DATA_DIR, "interviewees.json");
+const INTERVIEWEES_FILE = join(REPO_DATA_DIR, "interviewees.json");
 // Fichero local con las personas reales: tiene prioridad y git lo ignora,
 // para que los datos del cliente nunca acaben en el repositorio ni en Pages.
 const INTERVIEWEES_LOCAL_FILE = join(DATA_DIR, "interviewees.local.json");
-const TEMPLATE_FILE = join(DATA_DIR, "interviewees.template.json");
+const TEMPLATE_FILE = join(REPO_DATA_DIR, "interviewees.template.json");
 const ENV_FILE = join(ROOT, ".env.local");
 
-// Este MVP maneja credenciales y transcripciones: nunca se expone a la red local.
-const HOST = "127.0.0.1";
+// Por defecto el MVP solo escucha en localhost. El modo público (despliegue en
+// Cloud Run u otro servidor) se activa con PUBLIC_MODE=1 y exige ADMIN_TOKEN:
+// los participantes acceden con su token personal y la administración con el suyo.
+const PUBLIC_MODE = process.env.PUBLIC_MODE === "1" || Boolean(process.env.K_SERVICE);
+const ADMIN_TOKEN = (process.env.ADMIN_TOKEN || "").trim();
+const HOST = process.env.HOST || (PUBLIC_MODE ? "0.0.0.0" : "127.0.0.1");
 const PORT = Number(process.env.PORT || 4177);
+
+if (PUBLIC_MODE && !ADMIN_TOKEN) {
+  console.error("PUBLIC_MODE requiere definir ADMIN_TOKEN. Abortando.");
+  process.exit(1);
+}
 const DEFAULT_MODEL = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-1.5";
 const DEFAULT_VOICE = process.env.OPENAI_REALTIME_VOICE || "marin";
 // Modelo de texto para generar guías de entrevista, repreguntas y síntesis de procesos.
@@ -138,12 +149,58 @@ function isLoopback(req) {
   );
 }
 
-function requireLoopback(req, res) {
-  if (isLoopback(req)) return true;
-  sendJson(res, 403, {
-    error: "Esta acción de configuración solo está disponible desde este ordenador.",
-  });
+function isAdminRequest(req, url) {
+  if (!PUBLIC_MODE && isLoopback(req)) return true;
+  if (!ADMIN_TOKEN) return false;
+  const provided =
+    cleanString(req.headers["x-admin-token"], 200) ||
+    cleanString(url?.searchParams?.get("admin"), 200);
+  return provided === ADMIN_TOKEN;
+}
+
+function requireAdmin(req, res, url) {
+  if (isAdminRequest(req, url)) return true;
+  sendJson(res, 403, { error: "Esta acción está reservada a la administración del proyecto." });
   return false;
+}
+
+async function findPersonByAccessValue(value) {
+  const needle = cleanString(value, 80).toLowerCase();
+  if (!needle) return null;
+  try {
+    const people = validateInterviewees(await readActiveInterviewees());
+    return (
+      people.find((person) =>
+        person.token ? person.token === needle : person.id === needle,
+      ) || null
+    );
+  } catch {
+    return null;
+  }
+}
+
+function personAccessValue(req, url) {
+  return (
+    cleanString(req.headers["x-person-token"], 80) ||
+    cleanString(url?.searchParams?.get("token"), 80)
+  );
+}
+
+// En modo público, las acciones de participante exigen un enlace personal válido.
+async function requireParticipant(req, res, url) {
+  if (!PUBLIC_MODE) return true;
+  if (isAdminRequest(req, url)) return true;
+  const person = await findPersonByAccessValue(personAccessValue(req, url));
+  if (person) return true;
+  sendJson(res, 403, { error: "Acceso únicamente con un enlace personal válido." });
+  return false;
+}
+
+// Las zonas de administración (historial, exportaciones, síntesis) solo se
+// protegen en modo público; en local siguen siendo de libre acceso.
+function requireAdminArea(req, res, url) {
+  if (!PUBLIC_MODE) return true;
+  return requireAdmin(req, res, url);
 }
 
 function hasAllowedHost(req) {
@@ -996,12 +1053,13 @@ async function handleApi(req, res, url) {
       keyConfigured: Boolean(runtimeApiKey),
       model: DEFAULT_MODEL,
       voice: DEFAULT_VOICE,
-      localSettingsEnabled: isLoopback(req),
+      publicMode: PUBLIC_MODE,
+      localSettingsEnabled: PUBLIC_MODE ? isAdminRequest(req, url) : isLoopback(req),
     });
   }
 
   if (req.method === "PUT" && url.pathname === "/api/settings/openai-key") {
-    if (!requireLoopback(req, res)) return;
+    if (!requireAdmin(req, res, url)) return;
     const body = await readJsonBody(req);
     const apiKey = cleanString(body?.apiKey, 500);
     if (!/^sk-[A-Za-z0-9_-]{20,}$/.test(apiKey)) {
@@ -1012,6 +1070,7 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/realtime/session") {
+    if (!(await requireParticipant(req, res, url))) return;
     const body = await readJsonBody(req);
     const secret = await createRealtimeClientSecret({
       model: cleanString(body?.model, 100),
@@ -1021,12 +1080,21 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/interviewees") {
-    const raw = await readActiveInterviewees();
-    return sendJson(res, 200, { interviewees: validateInterviewees(raw) });
+    if (!PUBLIC_MODE || isAdminRequest(req, url)) {
+      const raw = await readActiveInterviewees();
+      return sendJson(res, 200, { interviewees: validateInterviewees(raw) });
+    }
+    // En modo público cada participante recibe solo su ficha, sin contexto privado.
+    const person = await findPersonByAccessValue(personAccessValue(req, url));
+    if (!person) {
+      return sendJson(res, 403, { error: "Acceso únicamente con un enlace personal válido." });
+    }
+    const { context, ...safePerson } = person;
+    return sendJson(res, 200, { interviewees: [{ ...safePerson, context: "" }] });
   }
 
   if (req.method === "PUT" && url.pathname === "/api/interviewees") {
-    if (!requireLoopback(req, res)) return;
+    if (!requireAdmin(req, res, url)) return;
     const body = await readJsonBody(req);
     const interviewees = validateInterviewees(body?.interviewees);
     await writeLocalInterviewees(interviewees);
@@ -1046,18 +1114,20 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/interviewees/generate") {
-    if (!requireLoopback(req, res)) return;
+    if (!requireAdmin(req, res, url)) return;
     const body = await readJsonBody(req);
     const result = await generateIntervieweeProfile(body);
     return sendJson(res, 200, { ok: true, ...result });
   }
 
   if (req.method === "POST" && url.pathname === "/api/transcribe") {
+    if (!(await requireParticipant(req, res, url))) return;
     const result = await transcribeAudio(req);
     return sendJson(res, 200, result);
   }
 
   if (req.method === "POST" && url.pathname === "/api/interviews/followup") {
+    if (!(await requireParticipant(req, res, url))) return;
     const body = await readJsonBody(req);
     const result = await generateFollowup(body);
     return sendJson(res, 200, result);
@@ -1067,7 +1137,7 @@ async function handleApi(req, res, url) {
     /^\/api\/interviews\/([a-f0-9-]{36})\/synthesis$/i,
   );
   if (req.method === "POST" && synthesisMatch) {
-    if (!requireLoopback(req, res)) return;
+    if (!requireAdmin(req, res, url)) return;
     const stored = await synthesizeInterview(synthesisMatch[1]);
     return sendJson(res, 200, {
       ok: true,
@@ -1083,6 +1153,7 @@ async function handleApi(req, res, url) {
     /^\/api\/interviews\/([a-f0-9-]{36})\/synthesis\/export$/i,
   );
   if (req.method === "GET" && synthesisExportMatch) {
+    if (!requireAdminArea(req, res, url)) return;
     const format = url.searchParams.get("format") === "json" ? "json" : "md";
     const path = join(INTERVIEWS_DIR, `${synthesisExportMatch[1]}.proceso.${format}`);
     if (!existsSync(path)) {
@@ -1100,7 +1171,7 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/synthesis/global") {
-    if (!requireLoopback(req, res)) return;
+    if (!requireAdmin(req, res, url)) return;
     const payload = await synthesizeGlobal();
     return sendJson(res, 200, {
       ok: true,
@@ -1113,6 +1184,7 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/synthesis/global/export") {
+    if (!requireAdminArea(req, res, url)) return;
     const format = url.searchParams.get("format") === "json" ? "json" : "md";
     const path = join(INTERVIEWS_DIR, `sintesis-global.${format}`);
     if (!existsSync(path)) {
@@ -1130,10 +1202,12 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/interviews") {
+    if (!requireAdminArea(req, res, url)) return;
     return sendJson(res, 200, { interviews: await listInterviewSummaries() });
   }
 
   if (req.method === "POST" && url.pathname === "/api/interviews") {
+    if (!(await requireParticipant(req, res, url))) return;
     const body = await readJsonBody(req);
     const record = await saveInterview(body);
     return sendJson(res, 200, {
@@ -1151,6 +1225,7 @@ async function handleApi(req, res, url) {
     /^\/api\/interviews\/([a-f0-9-]{36})\/export$/i,
   );
   if (req.method === "GET" && exportMatch) {
+    if (!(await requireParticipant(req, res, url))) return;
     const format = ["json", "md", "txt"].includes(url.searchParams.get("format"))
       ? url.searchParams.get("format")
       : "json";
@@ -1197,7 +1272,7 @@ async function serveStatic(req, res, url) {
 }
 
 const server = http.createServer(async (req, res) => {
-  if (!isLoopback(req) || !hasAllowedHost(req)) {
+  if (!PUBLIC_MODE && (!isLoopback(req) || !hasAllowedHost(req))) {
     return sendJson(res, 403, { error: "Este MVP solo admite conexiones locales." });
   }
   const url = new URL(req.url || "/", `http://${HOST}:${PORT}`);

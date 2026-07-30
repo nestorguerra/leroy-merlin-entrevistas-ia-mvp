@@ -23,6 +23,28 @@ function matchesLockedPerson(person) {
 function personalLinkFor(person) {
   return `${window.location.origin}/?soy=${encodeURIComponent(person.token || person.id)}`;
 }
+
+// Token de administración para el modo público (?admin=<token> lo guarda en el navegador).
+const ADMIN_ACCESS_TOKEN = (() => {
+  const fromUrl = new URLSearchParams(window.location.search).get("admin");
+  if (fromUrl) localStorage.setItem("interview-admin-token", fromUrl);
+  return fromUrl || localStorage.getItem("interview-admin-token") || "";
+})();
+
+function accessHeaders() {
+  const headers = {};
+  if (LOCKED_PERSON_ID) headers["x-person-token"] = LOCKED_PERSON_ID;
+  if (ADMIN_ACCESS_TOKEN) headers["x-admin-token"] = ADMIN_ACCESS_TOKEN;
+  return headers;
+}
+
+function withAccessParams(path) {
+  if (typeof path !== "string" || !path.startsWith("/")) return path;
+  const separator = path.includes("?") ? "&" : "?";
+  if (ADMIN_ACCESS_TOKEN) return `${path}${separator}admin=${encodeURIComponent(ADMIN_ACCESS_TOKEN)}`;
+  if (LOCKED_PERSON_ID) return `${path}${separator}token=${encodeURIComponent(LOCKED_PERSON_ID)}`;
+  return path;
+}
 // Modo administración: ?elige muestra el selector completo de personas.
 const SHOW_FULL_SELECTOR =
   new URLSearchParams(window.location.search).has("elige") || IS_STATIC_DEMO;
@@ -550,7 +572,10 @@ function updateKeyStatus() {
 }
 
 async function fetchJson(url, options = {}) {
-  const response = await fetch(url, options);
+  const response = await fetch(url, {
+    ...options,
+    headers: { ...accessHeaders(), ...(options.headers || {}) },
+  });
   let payload = {};
   try {
     payload = await response.json();
@@ -1892,7 +1917,7 @@ async function transcribeAsyncBlob(blob, questionIndex) {
   try {
     const response = await fetch("/api/transcribe", {
       method: "POST",
-      headers: { "Content-Type": blob.type || "audio/webm" },
+      headers: { ...accessHeaders(), "Content-Type": blob.type || "audio/webm" },
       body: blob,
     });
     const payload = await response.json().catch(() => ({}));
@@ -2285,9 +2310,9 @@ function updateCompletionScreen() {
   const minutes = Math.max(1, Math.round(durationSeconds() / 60));
   elements.completedDurationStat.textContent = `${minutes} min`;
   const exports = state.lastExports || {};
-  elements.downloadMarkdownButton.href = safeExportPath(exports.markdown);
-  elements.downloadTextButton.href = safeExportPath(exports.text);
-  elements.downloadJsonButton.href = safeExportPath(exports.json);
+  elements.downloadMarkdownButton.href = withAccessParams(safeExportPath(exports.markdown));
+  elements.downloadTextButton.href = withAccessParams(safeExportPath(exports.text));
+  elements.downloadJsonButton.href = withAccessParams(safeExportPath(exports.json));
   const suffix = state.sessionId || "demo";
   elements.downloadMarkdownButton.download = `entrevista-${suffix}.md`;
   elements.downloadTextButton.download = `entrevista-${suffix}.txt`;
@@ -2456,11 +2481,11 @@ async function loadHistory() {
             }</span>
           </div>
           <div class="history-item__links">
-            <a href="/api/interviews/${encodeURIComponent(interview.sessionId)}/export?format=md" download>MD</a>
-            <a href="/api/interviews/${encodeURIComponent(interview.sessionId)}/export?format=json" download>JSON</a>
+            <a href="${withAccessParams(`/api/interviews/${encodeURIComponent(interview.sessionId)}/export?format=md`)}" download>MD</a>
+            <a href="${withAccessParams(`/api/interviews/${encodeURIComponent(interview.sessionId)}/export?format=json`)}" download>JSON</a>
             ${
               interview.hasSynthesis
-                ? `<a href="/api/interviews/${encodeURIComponent(interview.sessionId)}/synthesis/export?format=md" download>Proceso</a>`
+                ? `<a href="${withAccessParams(`/api/interviews/${encodeURIComponent(interview.sessionId)}/synthesis/export?format=md`)}" download>Proceso</a>`
                 : ""
             }
             <button class="text-action" type="button" data-synthesize="${escapeHtml(interview.sessionId)}">
@@ -2513,6 +2538,7 @@ async function generateGlobalSynthesis() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
     });
+    elements.globalSynthesisDownload.href = withAccessParams("/api/synthesis/global/export?format=md");
     elements.globalSynthesisDownload.hidden = false;
     showToast(`Síntesis global generada con ${result.sources.length} entrevistas.`);
   } catch (error) {
@@ -2713,7 +2739,7 @@ function bindEvents() {
     try {
       materializePendingInputTranscripts();
       navigator.sendBeacon(
-        "/api/interviews",
+        withAccessParams("/api/interviews"),
         new Blob([JSON.stringify(createInterviewPayload("in_progress"))], {
           type: "application/json",
         }),
