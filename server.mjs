@@ -193,6 +193,8 @@ function validateInterviewees(value) {
     const area = cleanString(raw?.area, 80);
     const context = cleanString(raw?.context, 1200);
     const id = slugify(raw?.id || fullName || `persona-${index + 1}`);
+    // Token opcional no adivinable para el enlace personal (?soy=<token>).
+    const token = cleanString(raw?.token, 80).toLowerCase().replace(/[^a-z0-9-]/g, "");
     const durationMinutes = Math.max(15, Math.min(30, Number(raw?.durationMinutes) || 20));
     const questions = Array.isArray(raw?.questions)
       ? raw.questions.map((question) => cleanString(question, 800)).filter(Boolean)
@@ -201,8 +203,8 @@ function validateInterviewees(value) {
     if (!name || !role || !id) {
       throw validationError(`Faltan nombre, cargo o id en la persona ${index + 1}.`);
     }
-    if (ids.has(id)) {
-      throw validationError(`El id “${id}” está repetido.`);
+    if (ids.has(id) || (token && ids.has(token))) {
+      throw validationError(`El id o token de “${fullName}” está repetido.`);
     }
     if (questions.length < 12 || questions.length > 15) {
       throw validationError(
@@ -210,6 +212,7 @@ function validateInterviewees(value) {
       );
     }
     ids.add(id);
+    if (token) ids.add(token);
     return {
       id,
       name,
@@ -220,6 +223,7 @@ function validateInterviewees(value) {
       isDemo: Boolean(raw?.isDemo),
       context,
       questions,
+      ...(token ? { token } : {}),
     };
   });
 }

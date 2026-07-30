@@ -7,10 +7,22 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const IS_STATIC_DEMO =
   window.location.hostname.endsWith(".github.io") ||
   new URLSearchParams(window.location.search).has("pages-demo");
-// Enlace personal: ?soy=<id> fija la entrevista de esa persona y oculta el resto.
+// Enlace personal: ?soy=<token|id> fija la entrevista de esa persona y oculta el resto.
+// Si la persona tiene token, solo el token abre su entrevista (el id deja de valer).
 const LOCKED_PERSON_ID = (new URLSearchParams(window.location.search).get("soy") || "")
   .trim()
   .toLowerCase();
+
+function matchesLockedPerson(person) {
+  if (!LOCKED_PERSON_ID) return false;
+  return person.token
+    ? person.token === LOCKED_PERSON_ID
+    : person.id === LOCKED_PERSON_ID;
+}
+
+function personalLinkFor(person) {
+  return `${window.location.origin}/?soy=${encodeURIComponent(person.token || person.id)}`;
+}
 // Modo administración: ?elige muestra el selector completo de personas.
 const SHOW_FULL_SELECTOR =
   new URLSearchParams(window.location.search).has("elige") || IS_STATIC_DEMO;
@@ -605,7 +617,7 @@ async function loadInterviewees({ preserveSelection = true } = {}) {
   const payload = await fetchJson(IS_STATIC_DEMO ? "./data/interviewees.json" : "/api/interviewees");
   state.interviewees = Array.isArray(payload) ? payload : payload.interviewees || [];
   state.selectedIntervieweeId =
-    state.interviewees.find((person) => person.id === LOCKED_PERSON_ID)?.id ||
+    state.interviewees.find(matchesLockedPerson)?.id ||
     state.interviewees.find((person) => person.id === previousSelection)?.id ||
     (state.interviewees.length === 1 ? state.interviewees[0].id : null);
   renderPeople();
@@ -641,7 +653,7 @@ function renderPeople() {
     return;
   }
   const visiblePeople = LOCKED_PERSON_ID
-    ? state.interviewees.filter((person) => person.id === LOCKED_PERSON_ID)
+    ? state.interviewees.filter(matchesLockedPerson)
     : state.interviewees;
   renderPersonSelect(visiblePeople);
   if (!visiblePeople.length) {
@@ -705,7 +717,9 @@ function renderSettingsPeople() {
     .join("");
   $$("[data-copy-link]", elements.settingsProfileList).forEach((button) => {
     button.addEventListener("click", async () => {
-      const link = `${window.location.origin}/?soy=${encodeURIComponent(button.dataset.copyLink)}`;
+      const person = state.interviewees.find((item) => item.id === button.dataset.copyLink);
+      if (!person) return;
+      const link = personalLinkFor(person);
       try {
         await navigator.clipboard.writeText(link);
         button.textContent = "Copiado";
